@@ -1,0 +1,126 @@
+---
+title: 'Final assignment (summative)'
+author: "Dr Thomas Robinson and Dr Dan de Kadt"
+date: "AT 2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Submission information
+
+Part 1 of this assignment is due **Wednesday 10 January 2024 at 4pm**:
+
+* Please submit part 1 of this assignment via the submission portal on Moodle
+* You must submit this as a *knitted, .html* file -- .Rmd, .pdfs, or other file types will not be accepted
+
+*Please note, we will not contact you to recompile documents if they are submitted in the wrong format. It is your responsibility to ensure you submit your work correctly. Failure to do so will result in a mark of 0 for that assignment.*
+
+## Instructions
+
+This is a *summative* assignment, and will constitute 50% of your final grade. You should use feedback from seminars and your previous formative and summative assessments to ensure you meet both the substantive and formatting standards for this module.
+
+For clarity, the formatting requirements for each assignment are:
+
+* You must present all results in full sentences, as you would in a report or academic piece of writing
+  
+* If the exercise requires generating a table or figure, you should include at least one sentence introducing and explaining it. E.g. "Table 1 below reports the counts of Wikipedia articles mentioning the LSE, by type of article."
+
+* Unless stated otherwise, all code used to answer the exercises should be included as a code appendix at the end of the script. This formatting can be achieved by following the guidance in the template.Rmd file (see Assignment 1).
+
+* All code should be annotated with comments, to help the marker understand what you have done
+
+* Your output should be replicable. Any result/table/figure that cannot be traced back to your code will not be marked
+
+* If your code's runtime is long (because, e.g., it is scraping data from websites), it is acceptable to run this code once, save the output in a sensible format, and read this data back into your RMarkdown file. The original code used to produce the data should be commented out, so that it doesn't run but it still visible in the code appendix.
+
+## Part 1: Data Science Project (70 Marks)
+
+In Part 1 of your final assignment you will complete an independent data science project summarised in a written report. The assignment is designed to be more open-ended than the previous assignments, and we encourage creativity. 
+
+You should select any **one** of the **3 options** given below to be the topic of your project. Each option has a **research question** and **required data sources**. To successfully complete the assignment you must offer an answer to the research question using data from **at least** the required data sources, however you are encouraged to think more broadly and use data from other sources if you would like.
+
+Your final .html report must be submitted on Moodle by **Wednesday 10 January 2024 at 4pm**. You must **host your code, including your .Rmd and .html file, in a new public Github repo**. That code **must be replicable from start to finish**, and you should include a link to the repo at the top of your final report. 
+
+Note that you do not have to use **all** the data from the required data sources -- the requirement is only that you must use **some** data from these sources. It may also be wise to limit the amount of data you use (e.g. by randomly sampling, or by limiting the geographic or temporal coverage of your project) to make things manageable. 
+
+### Structuring your final .html project report
+
+Your final written report should be **no longer than 750 words** (excluding code), and should consist of four sections:
+
+1. Introduction: A brief introduction to the research question and your approach to answering it. You do not need to cite any literature or write a literature review.
+
+2. Data: A discussion of the data sources you used, how you accessed them, how you processed the data, the structure of your final analysis dataset(s), and so on. 
+
+3. Analysis: A presentation of your analysis, including figures/graphs/maps, and a discussion of your findings. In general, we do not expect you to conduct or interpret any formal statistical tests, though you may do this if you wish. Remember that your discussion should translate your specific analysis and results back to the level of the research question.
+
+4. Code Appendix: As in the previous assignments, all code that you do not wish to directly include in your report should be included in a code appendix at the end of the document.
+
+### Marking
+In Part 1, marks will be awarded for:
+
+* Completing the core data science task: answering the research question with data from the required data sources. 
+
+* The creativity and depth with which you answer the question (e.g. using additional data beyond the required data, creative analyses, careful discussion of issues and difficulties in interpretation, etc.).
+
+* The quality of presentation in your final document (e.g. well-presented tables, compelling visualisations, strong interpretations and explanations, etc.).
+
+* The quality of data science practice exhibited (e.g. replicability, well-written and efficient code, effective annotation, principled web-scraping, etc.). 
+
+### Option 1 
+
+#### Research question: 
+
+"In the United Kingdom, a police officer has powers to stop and search any individual if the officer has ‘reasonable grounds’ to suspect the individual is carrying certain items or, under some other conditions, if a senior police officer has granted approval (see [here](https://www.gov.uk/police-powers-to-stop-and-search-your-rights) for details). Are there biases in who experiences stop and search by the police?"
+
+#### Required data source:
+
+- [UK Police Data](https://data.police.uk/)
+
+### Option 2 
+
+#### Research question:
+
+"Oral and written questions allow Members of Parliament (MPs) in the House of Commons to query the government and its ministers on their work (see [here](https://www.parliament.uk/about/how/business/)). What, if any, characteristics and factors discriminate MPs who tend to ask questions about economic issues from MPs who tend to ask questions about health and welfare issues?"
+
+#### Required data source:
+
+- [UK Parliament API](https://developer.parliament.uk/)
+
+### Option 3
+
+#### Research question:
+
+"_Rolling Stone_ Magazine ranked their 100 greatest musical artists of all time. At the end of 2023, how has their music endured? Are there any features or characteristics that seem to explain enduring engagement? 
+
+#### Required data sources:
+
+- [Rolling Stone's 100 Greatest Artists, 2010](https://www.rollingstone.com/music/music-lists/100-greatest-artists-147446/)
+
+- [Spotify Web API](https://developer.spotify.com/documentation/web-api)
+
+
+## Part 2: Peer Review (30 Marks)
+
+On the evening of Wednesday 10 January you will be assigned (via email) the URL of one of your peer's public Github project repos. 
+
+Your task is to review their final report as well as their code (which you should at least attempt to run yourself), and offer some constructive feedback on their work. You will have two days to complete this review. You must submit the review in writing as a **new issue** in their Github repo, by **Friday 12 January at 4pm**. 
+
+**Please note** that if you require an extension on Part 1, you will also be given an extension on Part 2. 
+
+### Structuring your peer review
+
+Your peer review should be no more than 250 words, and should include only **two paragraphs**. The first paragraph should focus on the substance of the report, and the second paragraph should focus on their code. 
+
+### Marking
+
+For Part 2, marks will be awarded for:
+
+* Completing the core task: reviewing the report and code of your peer in a constructive way. 
+
+* The quality of your feedback. 
+
+* The clarity of your feedback.
+
