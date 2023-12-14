@@ -16,6 +16,7 @@ library(netstat)
 ################################################################################
 # Step 1: Get the data
 
+################################################################################
 # Step 1A: Rolling Stones data
 
 # Launch the driver and browser
@@ -130,11 +131,11 @@ top_hundred_artists_df <- scrape_artist_rankings()
 assign("top_hundred_artists_df", top_hundred_artists_df, envir = .GlobalEnv)
 
 # Save the data frame as an RData file in the current working directory
-save(top_hundred_artists_df, file = "top_hundred_artists_data.RData")
+save(top_hundred_artists_df, file = "data/top_hundred_artists_data.RData")
 
 
 # Load the data from the RData file
-load("top_hundred_artists_data.RData")
+load("data/top_hundred_artists_data.RData")
 
 # Make a copy of the data frame
 top_hundred_artists <- data.frame(top_hundred_artists_df)
@@ -145,6 +146,99 @@ top_hundred_artists <- data.frame(top_hundred_artists_df)
 driver$close()
 # Close the associated Java processes
 system("taskkill /im java.exe /f", intern=FALSE, ignore.stdout=FALSE)
+
+
+################################################################################
+# Step 1B: Spotify API data
+
+library(httr)
+library(base64enc)
+
+readRenviron("../../Documents/R_Environs/spotify_api.env")
+client_id <- Sys.getenv("CLIENT_ID")
+client_secret <- Sys.getenv("CLIENT_SECRET")
+
+# Create a base64-encoded string of the client ID and client secret
+credentials <- paste0(client_id, ':', client_secret)
+base64_credentials <- base64enc::base64encode(charToRaw(credentials))
+
+# Set up the authentication request
+auth_response <- httr::POST(
+  'https://accounts.spotify.com/api/token',
+  add_headers(
+    Authorization = paste0('Basic ', base64_credentials),
+    'Content-Type' = 'application/x-www-form-urlencoded'
+  ),
+  body = list(grant_type = 'client_credentials'),
+  encode = 'form'
+)
+
+# Check for HTTP errors
+if (http_error(auth_response)) {
+  print(status_code(auth_response))
+  print(content(auth_response, "text"))
+} else {
+  # Extract the access token from the response
+  access_token <- httr::content(auth_response)$access_token
+  print(access_token)
+}
+
+
+##
+
+# Replace 'ARTIST_ID' with the Spotify ID of the artist you're interested in
+artist_id <- '6ARKr2ZoLf9TDoQiZarJMt'
+
+# Define the Spotify API endpoint for getting information about an artist
+artist_url <- paste0('https://api.spotify.com/v1/artists/', artist_id)
+
+# Set up the request with the access token
+artist_response <- GET(artist_url, add_headers(Authorization = paste0('Bearer ', access_token)))
+
+# Extract the artist information from the response
+artist_info <- content(artist_response)
+print(artist_info)
+
+
+
+
+
+# Make it into a function that iterates through all artists in top_hundred_artists data frame
+library(httr)
+library(jsonlite)
+
+# Function to get the Spotify Artist ID for a given artist name
+get_artist_id <- function(artist_name) {
+  # Define the Spotify API endpoint for searching an artist
+  search_url <- 'https://api.spotify.com/v1/search'
+  
+  # Set up the request with the access token
+  search_response <- GET(
+    search_url,
+    query = list(q = artist_name, type = 'artist'),
+    add_headers(Authorization = paste0('Bearer ', access_token))
+  )
+  
+  # Extract the artist ID from the response
+  search_results <- content(search_response, "parsed")
+  
+  # Check if any results were returned
+  if (length(search_results$artists$items) > 0) {
+    artist_id <- search_results$artists$items[[1]]$id
+    return(artist_id)
+  } else {
+    # Return NA or any other value to indicate no match
+    return(NA)
+  }
+}
+
+# Apply the function to the entire "Artist_Name" column in the data frame
+top_hundred_artists$Spotify_Artist_ID <- sapply(top_hundred_artists$Artist_Name, get_artist_id)
+
+
+
+
+
 
 
 
