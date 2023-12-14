@@ -12,6 +12,47 @@
 library(tidyverse)
 library(RSelenium)
 library(netstat)
+library(DBI)
+library(RSQLite)
+library(purrr)
+
+
+################################################################################
+# Step 0: Create a relational database
+
+# Create database
+db <- dbConnect(RSQLite::SQLite(), "data/spotify.sqlite")
+
+# Check existence of the database
+print(file.exists("data/spotify.sqlite"))
+
+# Function that checks whether a table exists in the relational database
+check_table <- function(db, a_table){
+  
+  # Check if the "a_table" exists
+  if (a_table %in% dbListTables(db)) {
+    
+    # Get the row count
+    query <- paste("SELECT COUNT(*) FROM", a_table)
+    row_count <- dbGetQuery(db, query)[1, 1]
+    
+    # Get the column names
+    column_names <- as.character(dbListFields(db, a_table))
+    
+    # Get the column count
+    column_count <- length(unlist(column_names))
+    
+    # Print out dimensions and column names
+    formatted_string <- sprintf("The table %s exists and has the following dimensions: \nNumber of rows: %s \nNumber of columns: %s", a_table, row_count, column_count)
+    column_answer <- sprintf("Column names: %s", paste(column_names, collapse = ", "))
+    
+    return(cat(formatted_string, column_answer, sep = "\n"))
+    
+  } else {
+    # If "a_table" does not exist, return this statement:
+    return(cat("The table does not exist."))
+  }
+}
 
 ################################################################################
 # Step 1: Get the data
@@ -148,6 +189,7 @@ driver$close()
 system("taskkill /im java.exe /f", intern=FALSE, ignore.stdout=FALSE)
 
 
+
 ################################################################################
 # Step 1B: Spotify API data
 
@@ -184,26 +226,8 @@ if (http_error(auth_response)) {
 }
 
 
-##
 
-# Replace 'ARTIST_ID' with the Spotify ID of the artist you're interested in
-artist_id <- '6ARKr2ZoLf9TDoQiZarJMt'
-
-# Define the Spotify API endpoint for getting information about an artist
-artist_url <- paste0('https://api.spotify.com/v1/artists/', artist_id)
-
-# Set up the request with the access token
-artist_response <- GET(artist_url, add_headers(Authorization = paste0('Bearer ', access_token)))
-
-# Extract the artist information from the response
-artist_info <- content(artist_response)
-print(artist_info)
-
-
-
-
-
-# Make it into a function that iterates through all artists in top_hundred_artists data frame
+# Get the artist id for each artist in the top_hundred_artists data frame
 library(httr)
 library(jsonlite)
 
@@ -236,6 +260,199 @@ get_artist_id <- function(artist_name) {
 top_hundred_artists$Spotify_Artist_ID <- sapply(top_hundred_artists$Artist_Name, get_artist_id)
 
 
+# Get the artist info for each artist in the top_hundred_artists data frame
+get_artist_info <- function(artist_id){
+  # Define the Spotify API endpoint for getting information about an artist
+  artist_url <- paste0('https://api.spotify.com/v1/artists/', artist_id)
+  
+  # Set up the request with the access token
+  artist_response <- GET(artist_url, add_headers(Authorization = paste0('Bearer ', access_token)))
+  
+  # Extract the artist information from the response
+  artist_info <- content(artist_response)
+  
+  followers <- artist_info$followers$total[1]
+  genres <- artist_info$genres[1]
+  popularity <- artist_info$popularity
+  
+  # Create a list with the extracted information
+  artist_data <- list(followers = followers, genres = genres, popularity = popularity)
+  
+  return(artist_data)
+}
+
+# Apply the function to the entire "Artist_Name" column in the data frame
+result <- lapply(top_hundred_artists$Spotify_Artist_ID, get_artist_info)
+
+# Extract individual elements
+top_hundred_artists$Followers <- sapply(result, function(x) x$followers)
+top_hundred_artists$Genres <- sapply(result, function(x) x$genres)
+top_hundred_artists$Popularity <- sapply(result, function(x) x$popularity)
+
+
+# Remove the row names
+top_hundred_artists <- data.frame(top_hundred_artists, row.names = NULL)
+# Transform the "Genres" column into type character 
+top_hundred_artists$Genres <- sapply(top_hundred_artists$Genres, function(x) paste(x, collapse = ","))
+
+# Write universities_table to the relational database
+dbWriteTable(db, "top_hundred_artists_df", top_hundred_artists, overwrite = TRUE)
+str(top_hundred_artists_unlist)
+
+# Call check_table on "universities_df"
+check_table(db, "top_hundred_artists_df")
+
+
+
+# Get the artist top tracks
+
+get_top_tracks <- function(artist_id, market = "US") {
+  # Define the Spotify API endpoint for getting an artist's top tracks
+  top_tracks_url <- paste0('https://api.spotify.com/v1/artists/', artist_id, '/top-tracks?market=', market)
+  
+  # Set up the request with the access token
+  top_tracks_response <- GET(
+    top_tracks_url,
+    add_headers(Authorization = paste0('Bearer ', access_token))
+  )
+  
+  # Extract the top tracks from the response
+  top_tracks <- content(top_tracks_response, "parsed")
+  
+  return(top_tracks)
+}
+artist_id <- '3WrFJ7ztbogyGnTHbHJFl2'
+# Call the function to get the top tracks
+test_top_tracks <- get_top_tracks(artist_id)
+
+
+# Create an empty data frame for the top tracks
+top_tracks_data <- data.frame(
+  Spotify_Artist_ID = character(0),
+  Artist_Name = character(0),
+  Spotify_Track_ID = character(0),
+  Track_Name = character(0),
+  Track_Popularity = numeric(0),
+  Track_Duration = numeric(0),
+  Album_Release_Date = character(0),
+  stringsAsFactors = FALSE
+)
+
+
+get_top_tracks <- function(the_artist_id, market = "US") {
+  # Define the Spotify API endpoint for getting an artist's top tracks
+  top_tracks_url <- paste0('https://api.spotify.com/v1/artists/', the_artist_id, '/top-tracks?market=', market)
+  
+  # Set up the request with the access token
+  top_tracks_response <- GET(
+    top_tracks_url,
+    add_headers(Authorization = paste0('Bearer ', access_token))
+  )
+  
+  # Extract the top tracks from the response
+  top_tracks <- content(top_tracks_response, "parsed")
+  
+  
+  for (i in seq(length(test_top_tracks$tracks))) {
+    # Check and extract values, appending NA if a value is missing
+    top_tracks_data <- rbind(top_tracks_data, data.frame(
+      Spotify_Artist_ID = ifelse(!is.null(test_top_tracks$tracks[[i]]$artists[[1]]$id), artist_id, NA),
+      Artist_Name = ifelse(!is.null(test_top_tracks$tracks[[i]]$artists[[1]]$name), test_top_tracks$tracks[[i]]$artists[[1]]$name, NA),
+      Spotify_Track_ID = ifelse(!is.null(test_top_tracks$tracks[[i]]$id), test_top_tracks$tracks[[i]]$id, NA),
+      Track_Name = ifelse(!is.null(test_top_tracks$tracks[[i]]$name), test_top_tracks$tracks[[i]]$name, NA),
+      Track_Popularity = ifelse(!is.null(test_top_tracks$tracks[[i]]$popularity), test_top_tracks$tracks[[i]]$popularity, NA),
+      Track_Duration = ifelse(!is.null(test_top_tracks$tracks[[i]]$duration_ms), test_top_tracks$tracks[[i]]$duration_ms, NA),
+      Album_Release_Date = ifelse(!is.null(test_top_tracks$tracks[[i]]$album$release_date), test_top_tracks$tracks[[i]]$album$release_date, NA)
+    ))
+  }
+  
+  return(top_tracks_data)
+}
+
+
+result_list <- lapply(top_hundred_artists$Spotify_Artist_ID, get_top_tracks)
+top_tracks_data <- do.call(rbind, result_list)
+
+
+
+
+
+
+
+
+# Apply the function to the entire "Artist_Name" column in the data frame
+top_tracks_data <- map_df(top_hundred_artists$Spotify_Artist_ID, get_top_tracks)
+
+
+
+artist_id <- '3WrFJ7ztbogyGnTHbHJFl2'
+# Call the function to get the top tracks
+top_tracks_data <- get_top_tracks(artist_id)
+
+
+# Second try:
+
+# Create an empty data frame for the top tracks
+top_tracks_data <- data.frame(
+  Spotify_Artist_ID = character(0),
+  Artist_Name = character(0),
+  Spotify_Track_ID = character(0),
+  Track_Name = character(0),
+  Track_Popularity = numeric(0),
+  Track_Duration = numeric(0),
+  Album_Release_Date = character(0),
+  stringsAsFactors = FALSE
+)
+
+# Function that queries the API for each artist's top track data given their ID
+get_data <- function(the_artist_id, market="US") {
+  # Define the Spotify API endpoint for getting an artist's top tracks
+  top_tracks_url <- paste0('https://api.spotify.com/v1/artists/', the_artist_id, '/top-tracks?market=', market)
+  
+  # Set up the request with the access token
+  top_tracks_response <- GET(
+    top_tracks_url,
+    add_headers(Authorization = paste0('Bearer ', access_token))
+  )
+  
+  # Extract the top tracks from the response
+  top_tracks <- content(top_tracks_response, "parsed")
+  
+  return(top_tracks)
+}
+
+# Function that gets the top tracks data given the artist ID and using the function get_data
+get_finance_data <- function(the_artist_id) {
+  
+  # Get the data given the ein
+  top_tracks <- get_data(the_artist_id)
+  
+  # Loop through the top tracks for each artist
+  for (i in seq(length(top_tracks$tracks))) {
+    # Check and extract values, appending NA if a value is missing
+    top_tracks_data <- rbind(top_tracks_data, data.frame(
+      Spotify_Artist_ID = ifelse(!is.null(top_tracks$tracks[[i]]$artists[[1]]$id), artist_id, NA),
+      Artist_Name = ifelse(!is.null(top_tracks$tracks[[i]]$artists[[1]]$name), top_tracks$tracks[[i]]$artists[[1]]$name, NA),
+      Spotify_Track_ID = ifelse(!is.null(top_tracks$tracks[[i]]$id), top_tracks$tracks[[i]]$id, NA),
+      Track_Name = ifelse(!is.null(top_tracks$tracks[[i]]$name), top_tracks$tracks[[i]]$name, NA),
+      Track_Popularity = ifelse(!is.null(top_tracks$tracks[[i]]$popularity), top_tracks$tracks[[i]]$popularity, NA),
+      Track_Duration = ifelse(!is.null(top_tracks$tracks[[i]]$duration_ms), top_tracks$tracks[[i]]$duration_ms, NA),
+      Album_Release_Date = ifelse(!is.null(top_tracks$tracks[[i]]$album$release_date), top_tracks$tracks[[i]]$album$release_date, NA)
+    ))
+  }
+  
+  return(top_tracks)
+}
+
+result_list <- lapply(top_hundred_artists$Spotify_Artist_ID, get_top_tracks)
+top_tracks_data <- do.call(rbind, result_list)
+
+
+
+
+################################################################################
+# Close the database connection
+dbDisconnect(db)
 
 
 

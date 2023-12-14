@@ -42,3 +42,15 @@ The GitHub repository for **this assignment** can be found [here](https://github
 
 
 
+Ideas:
+
+- Who were the articles written by/who did the rankings?
+  - Men?
+  - Older people?
+
+- Potentially, nowadays, mostly the new generation decides what's popular on spotify
+  - They want female artists
+  - And shorter songs -> by newer artists ("TikTok" songs)
+  
+  
+- Idea: plot the average duration of the most popular songs of the top 100 artists against the average duration of the songs in the top 50 global playlist
