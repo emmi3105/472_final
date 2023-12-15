@@ -306,92 +306,6 @@ check_table(db, "top_hundred_artists_df")
 
 # Get the artist top tracks
 
-get_top_tracks <- function(artist_id, market = "US") {
-  # Define the Spotify API endpoint for getting an artist's top tracks
-  top_tracks_url <- paste0('https://api.spotify.com/v1/artists/', artist_id, '/top-tracks?market=', market)
-  
-  # Set up the request with the access token
-  top_tracks_response <- GET(
-    top_tracks_url,
-    add_headers(Authorization = paste0('Bearer ', access_token))
-  )
-  
-  # Extract the top tracks from the response
-  top_tracks <- content(top_tracks_response, "parsed")
-  
-  return(top_tracks)
-}
-artist_id <- '3WrFJ7ztbogyGnTHbHJFl2'
-# Call the function to get the top tracks
-test_top_tracks <- get_top_tracks(artist_id)
-
-
-# Create an empty data frame for the top tracks
-top_tracks_data <- data.frame(
-  Spotify_Artist_ID = character(0),
-  Artist_Name = character(0),
-  Spotify_Track_ID = character(0),
-  Track_Name = character(0),
-  Track_Popularity = numeric(0),
-  Track_Duration = numeric(0),
-  Album_Release_Date = character(0),
-  stringsAsFactors = FALSE
-)
-
-
-get_top_tracks <- function(the_artist_id, market = "US") {
-  # Define the Spotify API endpoint for getting an artist's top tracks
-  top_tracks_url <- paste0('https://api.spotify.com/v1/artists/', the_artist_id, '/top-tracks?market=', market)
-  
-  # Set up the request with the access token
-  top_tracks_response <- GET(
-    top_tracks_url,
-    add_headers(Authorization = paste0('Bearer ', access_token))
-  )
-  
-  # Extract the top tracks from the response
-  top_tracks <- content(top_tracks_response, "parsed")
-  
-  
-  for (i in seq(length(test_top_tracks$tracks))) {
-    # Check and extract values, appending NA if a value is missing
-    top_tracks_data <- rbind(top_tracks_data, data.frame(
-      Spotify_Artist_ID = ifelse(!is.null(test_top_tracks$tracks[[i]]$artists[[1]]$id), artist_id, NA),
-      Artist_Name = ifelse(!is.null(test_top_tracks$tracks[[i]]$artists[[1]]$name), test_top_tracks$tracks[[i]]$artists[[1]]$name, NA),
-      Spotify_Track_ID = ifelse(!is.null(test_top_tracks$tracks[[i]]$id), test_top_tracks$tracks[[i]]$id, NA),
-      Track_Name = ifelse(!is.null(test_top_tracks$tracks[[i]]$name), test_top_tracks$tracks[[i]]$name, NA),
-      Track_Popularity = ifelse(!is.null(test_top_tracks$tracks[[i]]$popularity), test_top_tracks$tracks[[i]]$popularity, NA),
-      Track_Duration = ifelse(!is.null(test_top_tracks$tracks[[i]]$duration_ms), test_top_tracks$tracks[[i]]$duration_ms, NA),
-      Album_Release_Date = ifelse(!is.null(test_top_tracks$tracks[[i]]$album$release_date), test_top_tracks$tracks[[i]]$album$release_date, NA)
-    ))
-  }
-  
-  return(top_tracks_data)
-}
-
-
-result_list <- lapply(top_hundred_artists$Spotify_Artist_ID, get_top_tracks)
-top_tracks_data <- do.call(rbind, result_list)
-
-
-
-
-
-
-
-
-# Apply the function to the entire "Artist_Name" column in the data frame
-top_tracks_data <- map_df(top_hundred_artists$Spotify_Artist_ID, get_top_tracks)
-
-
-
-artist_id <- '3WrFJ7ztbogyGnTHbHJFl2'
-# Call the function to get the top tracks
-top_tracks_data <- get_top_tracks(artist_id)
-
-
-# Second try:
-
 # Create an empty data frame for the top tracks
 top_tracks_data <- data.frame(
   Spotify_Artist_ID = character(0),
@@ -422,32 +336,45 @@ get_data <- function(the_artist_id, market="US") {
 }
 
 # Function that gets the top tracks data given the artist ID and using the function get_data
-get_finance_data <- function(the_artist_id) {
+get_top_tracks <- function(the_artist_id) {
   
   # Get the data given the ein
   top_tracks <- get_data(the_artist_id)
   
   # Loop through the top tracks for each artist
-  for (i in seq(length(top_tracks$tracks))) {
-    # Check and extract values, appending NA if a value is missing
+  
+  if (!is.null(top_tracks$tracks) && length(top_tracks$tracks) > 0) {
+    # Enter the loop
+    for (i in seq(length(top_tracks$tracks))) {
+      # Check and extract values, appending NA if a value is missing
+      top_tracks_data <- rbind(top_tracks_data, data.frame(
+        Spotify_Artist_ID = ifelse(!is.null(top_tracks$tracks[[i]]$artists[[1]]$id), the_artist_id, NA),
+        Artist_Name = ifelse(!is.null(top_tracks$tracks[[i]]$artists[[1]]$name), top_tracks$tracks[[i]]$artists[[1]]$name, NA),
+        Spotify_Track_ID = ifelse(!is.null(top_tracks$tracks[[i]]$id), top_tracks$tracks[[i]]$id, NA),
+        Track_Name = ifelse(!is.null(top_tracks$tracks[[i]]$name), top_tracks$tracks[[i]]$name, NA),
+        Track_Popularity = ifelse(!is.null(top_tracks$tracks[[i]]$popularity), top_tracks$tracks[[i]]$popularity, NA),
+        Track_Duration = ifelse(!is.null(top_tracks$tracks[[i]]$duration_ms), top_tracks$tracks[[i]]$duration_ms, NA),
+        Album_Release_Date = ifelse(!is.null(top_tracks$tracks[[i]]$album$release_date), top_tracks$tracks[[i]]$album$release_date, NA)
+      ))
+    }
+  } else {
+    # Print a message or take appropriate action when top_tracks$tracks is NULL or empty
     top_tracks_data <- rbind(top_tracks_data, data.frame(
-      Spotify_Artist_ID = ifelse(!is.null(top_tracks$tracks[[i]]$artists[[1]]$id), artist_id, NA),
-      Artist_Name = ifelse(!is.null(top_tracks$tracks[[i]]$artists[[1]]$name), top_tracks$tracks[[i]]$artists[[1]]$name, NA),
-      Spotify_Track_ID = ifelse(!is.null(top_tracks$tracks[[i]]$id), top_tracks$tracks[[i]]$id, NA),
-      Track_Name = ifelse(!is.null(top_tracks$tracks[[i]]$name), top_tracks$tracks[[i]]$name, NA),
-      Track_Popularity = ifelse(!is.null(top_tracks$tracks[[i]]$popularity), top_tracks$tracks[[i]]$popularity, NA),
-      Track_Duration = ifelse(!is.null(top_tracks$tracks[[i]]$duration_ms), top_tracks$tracks[[i]]$duration_ms, NA),
-      Album_Release_Date = ifelse(!is.null(top_tracks$tracks[[i]]$album$release_date), top_tracks$tracks[[i]]$album$release_date, NA)
+      Spotify_Artist_ID = the_artist_id,
+      Artist_Name = NA,
+      Spotify_Track_ID = NA,
+      Track_Name = NA,
+      Track_Popularity = NA,
+      Track_Duration = NA,
+      Album_Release_Date = NA
     ))
   }
   
-  return(top_tracks)
+  return(top_tracks_data)
 }
 
 result_list <- lapply(top_hundred_artists$Spotify_Artist_ID, get_top_tracks)
 top_tracks_data <- do.call(rbind, result_list)
-
-
 
 
 ################################################################################
