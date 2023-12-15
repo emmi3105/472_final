@@ -26,6 +26,10 @@ db <- dbConnect(RSQLite::SQLite(), "data/spotify.sqlite")
 # Check existence of the database
 print(file.exists("data/spotify.sqlite"))
 
+# Check which tables exist in the database
+tables <- dbListTables(db)
+print(tables)
+
 # Function that checks whether a table exists in the relational database
 check_table <- function(db, a_table){
   
@@ -295,11 +299,10 @@ top_hundred_artists <- data.frame(top_hundred_artists, row.names = NULL)
 # Transform the "Genres" column into type character 
 top_hundred_artists$Genres <- sapply(top_hundred_artists$Genres, function(x) paste(x, collapse = ","))
 
-# Write universities_table to the relational database
+# Write top_hundred_artists_df to the relational database
 dbWriteTable(db, "top_hundred_artists_df", top_hundred_artists, overwrite = TRUE)
-str(top_hundred_artists_unlist)
 
-# Call check_table on "universities_df"
+# Call check_table on "top_hundred_artists_df"
 check_table(db, "top_hundred_artists_df")
 
 
@@ -342,10 +345,12 @@ get_top_tracks <- function(the_artist_id) {
   top_tracks <- get_data(the_artist_id)
   
   # Loop through the top tracks for each artist
-  
   if (!is.null(top_tracks$tracks) && length(top_tracks$tracks) > 0) {
     # Enter the loop
     for (i in seq(length(top_tracks$tracks))) {
+      # Calculate Collaboration value for each song
+      collaboration_value <- ifelse(length(top_tracks$tracks[[i]]$artists) > 1, 1, 0)
+      
       # Check and extract values, appending NA if a value is missing
       top_tracks_data <- rbind(top_tracks_data, data.frame(
         Spotify_Artist_ID = ifelse(!is.null(top_tracks$tracks[[i]]$artists[[1]]$id), the_artist_id, NA),
@@ -354,7 +359,8 @@ get_top_tracks <- function(the_artist_id) {
         Track_Name = ifelse(!is.null(top_tracks$tracks[[i]]$name), top_tracks$tracks[[i]]$name, NA),
         Track_Popularity = ifelse(!is.null(top_tracks$tracks[[i]]$popularity), top_tracks$tracks[[i]]$popularity, NA),
         Track_Duration = ifelse(!is.null(top_tracks$tracks[[i]]$duration_ms), top_tracks$tracks[[i]]$duration_ms, NA),
-        Album_Release_Date = ifelse(!is.null(top_tracks$tracks[[i]]$album$release_date), top_tracks$tracks[[i]]$album$release_date, NA)
+        Album_Release_Date = ifelse(!is.null(top_tracks$tracks[[i]]$album$release_date), top_tracks$tracks[[i]]$album$release_date, NA),
+        Collaboration = collaboration_value
       ))
     }
   } else {
@@ -366,7 +372,8 @@ get_top_tracks <- function(the_artist_id) {
       Track_Name = NA,
       Track_Popularity = NA,
       Track_Duration = NA,
-      Album_Release_Date = NA
+      Album_Release_Date = NA,
+      Collaboration = NA
     ))
   }
   
@@ -375,6 +382,86 @@ get_top_tracks <- function(the_artist_id) {
 
 result_list <- lapply(top_hundred_artists$Spotify_Artist_ID, get_top_tracks)
 top_tracks_data <- do.call(rbind, result_list)
+
+
+### NOTE: Drop the artist name later and if you need it retrieve it through SQL query from the "top_hundred_artists" data frame.
+
+
+# Write top_tracks_data to the relational database
+dbWriteTable(db, "top_tracks_df", top_tracks_data, overwrite = TRUE)
+
+# Call check_table on "top_tracks_df"
+check_table(db, "top_tracks_df")
+
+
+
+
+# Third table: Top tracks of 2023, USA
+
+# Get a playlist
+get_playlist <- function(playlist_id){
+ 
+  # Spotify API endpoint for getting playlist details
+  endpoint <- paste0('https://api.spotify.com/v1/playlists/', playlist_id)
+  
+  # Set up the request headers with the access token
+  headers <- c('Authorization' = paste0('Bearer ', access_token))
+  
+  # Make the GET request
+  playlist_response <- GET(endpoint, add_headers(headers))
+  playlist_data <- content(playlist_response, 'parsed')
+  
+  return(playlist_data)
+}
+
+# Create an empty dataframe
+
+top_tracks_2023_USA <- data.frame(
+  Playlist_Name = character(0),
+  Playlist_ID = character(0),
+  Playlist_Description = character(0),
+  Track_Name = character(0),
+  Track_Artist = character(0),
+  Track_ID = character(0),
+  stringsAsFactors = FALSE
+)
+
+# function that gets the finance data given the ein and using the functions get_university_name and get_data
+get_playlist_info <- function(playlist_id) {
+  
+  # Get the playlist data given the playlist id
+  dt <- get_playlist(playlist_id)
+  
+  # Loop to append values
+  for (i in seq(length(results_top_tracks_2023_USA$tracks$items))) {
+    # Append the values to the dataframe
+    top_tracks_2023_USA <- rbind(top_tracks_2023_USA, data.frame(Playlist_Name = dt$name,
+                                                                 Playlist_ID = dt$id,
+                                                                 Playlist_Description = dt$description,
+                                                                 Track_Name = dt$tracks$items[[i]]$track$name,
+                                                                 Track_Artist = dt$tracks$items[[i]]$track$artists[[1]]$name,
+                                                                 Track_ID = dt$tracks$items[[i]]$track$id
+                                                                 ))
+  }
+  
+  # Return the resulting dataframe
+  return(top_tracks_2023_USA)
+}
+
+top_tracks_2023_USA_id <- "37i9dQZF1DXbJMiQ53rTyJ"
+top_tracks_2023_USA <- get_playlist_info(top_tracks_2023_USA_id)
+
+
+# Write top_tracks_2023_USA to the relational database
+dbWriteTable(db, "top_tracks_2023_USA_df", top_tracks_2023_USA, overwrite = TRUE)
+
+# Call check_table on "top_tracks_2023_USA_df"
+check_table(db, "top_tracks_2023_USA_df")
+
+
+
+
+
 
 
 ################################################################################
