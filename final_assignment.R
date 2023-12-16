@@ -501,46 +501,145 @@ content <- get_event_data("Taylor Swift", ticketmaster_apikey)
 # Create an empty dataframe
 
 event_data <- data.frame(
+  Artist_Name = character(0),
   Event_Name = character(0),
   Event_ID = character(0),
   stringsAsFactors = FALSE
 )
 
 # function that gets the finance data given the ein and using the functions get_university_name and get_data
-get_ticketmaster_info <- function(artist_name, ticketmaster_apikey) {
+get_ticketmaster_info <- function(artist_name, apikey = ticketmaster_apikey) {
   
   # Get the playlist data given the playlist id
-  dt <- get_event_data(artist_name, ticketmaster_apikey)
+  dt <- get_event_data(artist_name, apikey)
   
-  # Loop to append values
-  for (i in seq(length(content$'_embedded'$events))) {
-    # Append the values to the dataframe
-    event_data <- rbind(event_data, data.frame(Artist_Name = artist_name,
-                                               Event_Name = dt$'_embedded'$events[[i]]$name,
-                                               Event_ID = dt$'_embedded'$events[[i]]$id
+  
+  # Loop through the top tracks for each artist
+  if (!is.null(dt$'_embedded'$events) && length(dt$'_embedded'$events) > 0) {
+    # Loop to append values
+    for (i in seq(length(dt$'_embedded'$events))) {
+      # Append the values to the data frame
+      event_data <- rbind(event_data, data.frame(Artist_Name = artist_name,
+                                                 Event_Name = dt$'_embedded'$events[[i]]$name,
+                                                 Event_ID = dt$'_embedded'$events[[i]]$id
+      ))
+    }
+    
+  } else {
+    # Print a message or take appropriate action when top_tracks$tracks is NULL or empty
+    event_data <- rbind(event_data, data.frame(
+      Artist_Name = artist_name,
+      Event_Name = NA,
+      Event_ID = NA
     ))
   }
   
-  # Return the resulting dataframe
+  # Return the resulting data frame
   return(event_data)
 }
 
-event_data <- get_ticketmaster_info("The Beatles", ticketmaster_apikey)
+result_list <- lapply(top_hundred_artists$Artist_Name, get_ticketmaster_info)
+event_data <- do.call(rbind, result_list)
+
+# Clean the data
+event_data <- event_data %>%
+  # Clean up "The Drifters"
+  mutate(
+    Event_Name = ifelse(Artist_Name == "The Drifters", NA, Event_Name),
+    Event_ID = ifelse(Artist_Name == "The Drifters", NA, Event_ID)
+  ) %>%
+  filter(!duplicated(Artist_Name) | Artist_Name != "The Drifters")  %>%
+  
+  # Clean up "Eagles"
+  mutate(
+    Event_Name = ifelse(Artist_Name == "Eagles", NA, Event_Name),
+    Event_ID = ifelse(Artist_Name == "Eagles", NA, Event_ID)
+  ) %>%
+  filter(!duplicated(Artist_Name) | Artist_Name != "Eagles")  %>%
+  
+  # Clean up "The Doors"
+  mutate(
+    Event_Name = ifelse(Artist_Name == "The Doors", NA, Event_Name),
+    Event_ID = ifelse(Artist_Name == "The Doors", NA, Event_ID)
+  ) %>%
+  filter(!duplicated(Artist_Name) | Artist_Name != "The Doors")  %>%
+  
+  # Clean up "The Police"
+  filter(!(Artist_Name == "The Police" & (Event_Name == "Fire Vs Police Flag Football" | Event_Name == "POLICE STATE / GEMM / CENOBITE / DOGPILE"))) %>%
+  
+  # Clean up "Cream" 
+  mutate(
+    Event_Name = ifelse(Artist_Name == "Cream", NA, Event_Name),
+    Event_ID = ifelse(Artist_Name == "Cream", NA, Event_ID)
+  ) %>%
+  filter(!duplicated(Artist_Name) | Artist_Name != "Cream")  %>%
+  
+  # Clean up "Grateful Dead"
+  filter(!(Artist_Name == "Grateful Dead" & (Event_Name == "DEAD NIGHT w/ Grateful Upstate Toodeloo" | Event_Name == "POLICE STATE / GEMM / CENOBITE / DOGPILE"))) %>%
+  
+  # Clean up "Howlin' Wolf" 
+  mutate(
+    Event_Name = ifelse(Artist_Name == "Howlin’ Wolf", NA, Event_Name),
+    Event_ID = ifelse(Artist_Name == "Howlin’ Wolf", NA, Event_ID)
+  ) %>%
+  filter(!duplicated(Artist_Name) | Artist_Name != "Howlin’ Wolf")  %>%
+  
+  # Clean up "Queen"
+  filter(!(Artist_Name == "Queen" & Event_Name == "The Snow Queen")) %>%
+
+  # Clean up "The Band" 
+  mutate(
+    Event_Name = ifelse(Artist_Name == "The Band", NA, Event_Name),
+    Event_ID = ifelse(Artist_Name == "The Band", NA, Event_ID)
+  ) %>%
+  filter(!duplicated(Artist_Name) | Artist_Name != "The Band")  %>%
+
+  # Clean up "The Doors" 
+  mutate(
+    Event_Name = ifelse(Artist_Name == "The Doors", NA, Event_Name),
+    Event_ID = ifelse(Artist_Name == "The Doors", NA, Event_ID)
+  ) %>%
+  filter(!duplicated(Artist_Name) | Artist_Name != "The Doors")  %>%
+
+  # Clean up "The Who" 
+  mutate(
+    Event_Name = ifelse(Artist_Name == "The Who", NA, Event_Name),
+    Event_ID = ifelse(Artist_Name == "The Who", NA, Event_ID)
+  ) %>%
+  filter(!duplicated(Artist_Name) | Artist_Name != "The Who")  %>%
+    
+  # Clean up "Buddy Holly" 
+  mutate(
+    Event_Name = ifelse(Artist_Name == "Buddy Holly", NA, Event_Name),
+    Event_ID = ifelse(Artist_Name == "Buddy Holly", NA, Event_ID)
+  ) %>%
+  filter(!duplicated(Artist_Name) | Artist_Name != "Buddy Holly")  %>%
+    
+  # Clean up "The Beach Boys" 
+  mutate(
+    Event_Name = ifelse(Artist_Name == "The Beach Boys", NA, Event_Name),
+    Event_ID = ifelse(Artist_Name == "The Beach Boys", NA, Event_ID)
+  ) %>%
+  filter(!duplicated(Artist_Name) | Artist_Name != "The Beach Boys")  %>%
+
+  # Clean up "James Brown" 
+  mutate(
+    Event_Name = ifelse(Artist_Name == "James Brown", NA, Event_Name),
+    Event_ID = ifelse(Artist_Name == "James Brown", NA, Event_ID)
+  ) %>%
+  filter(!duplicated(Artist_Name) | Artist_Name != "James Brown")
+    
 
 event_data <- event_data %>%
   left_join(top_hundred_artists, by = 'Artist_Name') %>%
-  select(Artist_Name, Spotify_Artist_ID, Event_Name, Event_ID)
+  select(Artist_Name, Spotify_Artist_ID, Event_Name, Event_ID)    
 
+# Write event_data to the relational database
+dbWriteTable(db, "event_data_df", event_data, overwrite = TRUE)
 
+# Call check_table on "event_data_df"
+check_table(db, "event_data_df")
 
-
-
-test_data <- get_ticketmaster_info("Taylor Swift", ticketmaster_apikey)
-
-seq(length(content$'_embedded'$events))
-
-
-content$'_embedded'$events[[1]]$id
 
 
 
