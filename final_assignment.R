@@ -460,6 +460,91 @@ check_table(db, "top_tracks_2023_USA_df")
 
 
 
+# Fourth table: Event Information using the Ticketmaster API
+
+# Set up the API key
+library("jsonlite")
+library("httr")
+
+readRenviron("../../Documents/R_Environs/ticketmaster_api.env")
+ticketmaster_apikey <- Sys.getenv("KEY")
+
+
+
+get_event_data <- function(artist_name, ticketmaster_apikey){
+  # Specify an endpoint (e.g., events)
+  endpoint <- "events"
+  
+  # Build the complete URL
+  url <- paste0("https://app.ticketmaster.com/discovery/v2/", endpoint)
+  
+  # Set query parameters
+  params <- list(
+    apikey = ticketmaster_apikey,
+    countryCode = "US",
+    keyword = artist_name,  # Replace with the name of the artist
+    startDateTime = "2023-01-01T00:00:00Z",  # Set the start date to filter past events
+    endDateTime = "2023-12-31T23:59:59Z"    # Set the end date
+    #size = 5 
+  )
+  
+  # Make the GET request
+  response <- GET(url, query = params)
+  content <- content(response, "parsed") 
+  
+  return(content)
+}
+
+content <- get_event_data("Taylor Swift", ticketmaster_apikey)
+
+
+# Create an empty dataframe
+
+event_data <- data.frame(
+  Event_Name = character(0),
+  Event_ID = character(0),
+  stringsAsFactors = FALSE
+)
+
+# function that gets the finance data given the ein and using the functions get_university_name and get_data
+get_ticketmaster_info <- function(artist_name, ticketmaster_apikey) {
+  
+  # Get the playlist data given the playlist id
+  dt <- get_event_data(artist_name, ticketmaster_apikey)
+  
+  # Loop to append values
+  for (i in seq(length(content$'_embedded'$events))) {
+    # Append the values to the dataframe
+    event_data <- rbind(event_data, data.frame(Artist_Name = artist_name,
+                                               Event_Name = dt$'_embedded'$events[[i]]$name,
+                                               Event_ID = dt$'_embedded'$events[[i]]$id
+    ))
+  }
+  
+  # Return the resulting dataframe
+  return(event_data)
+}
+
+event_data <- get_ticketmaster_info("The Beatles", ticketmaster_apikey)
+
+event_data <- event_data %>%
+  left_join(top_hundred_artists, by = 'Artist_Name') %>%
+  select(Artist_Name, Spotify_Artist_ID, Event_Name, Event_ID)
+
+
+
+
+
+test_data <- get_ticketmaster_info("Taylor Swift", ticketmaster_apikey)
+
+seq(length(content$'_embedded'$events))
+
+
+content$'_embedded'$events[[1]]$id
+
+
+
+
 
 
 

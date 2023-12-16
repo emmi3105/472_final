@@ -54,3 +54,27 @@ Ideas:
   
   
 - Idea: plot the average duration of the most popular songs of the top 100 artists against the average duration of the songs in the top 50 global playlist
+
+-> Nowadays, songs "go viral" on social media
+
+3 fields of analysis to find out the endurement
+
+1. Performance on spotify
+
+2. Concerts/Events
+  - Idea. Before attending an event/concert by a specifiy artist, the people who will attend might listen to their music much more
+  
+3. Social Media presence
+
+
+Data:
+
+- Rolling Stones top 100 artists
+- Spotify API
+  - Top 100 artist information
+  - Top 100 tracks
+  - Top tracks 2023 US
+- Ticketmaster API
+- Social Media data?
+
+  
