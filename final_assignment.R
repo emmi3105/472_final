@@ -642,7 +642,56 @@ check_table(db, "event_data_df")
 
 
 ################################################################################
-# Table 5: Social media data
+# Table 5: Platinum certifications from RIAA
+
+# RIAA does not allow webscraping: https://www.riaa.com/privacy-policy-and-terms-of-use/ 
+# Therefore, I used wikipedia as a source to scrape information on album awards
+# Be aware, that the wikipedia data might not reflect the actual data on RIAA perfectly
+
+library(rvest)
+url <- "https://en.wikipedia.org/wiki/List_of_highest-certified_music_artists_in_the_United_States"
+
+get_wikipedia_tables <- function(url){
+  # Storing the URL's HTML code
+  html_content <- read_html(url)
+  
+  # Extracting all tables in the document 
+  tab <- html_table(html_content, fill = TRUE)
+  
+  return(tab)
+}
+
+tab <- get_wikipedia_tables(url)
+
+certified_albums_data <- as_tibble(tab[[1]][, 1:5])
+certified_singles_data <- as_tibble(tab[[2]][, 1:5])
+
+# Save the tables as global variables
+assign("certified_albums_data", certified_albums_data, envir = .GlobalEnv)
+assign("certified_singles_data", certified_singles_data, envir = .GlobalEnv)
+
+# Save the global variables to an RData files
+save(certified_albums_df, file = "data/certified_albums_data.RData")
+save(certified_singles_df, file = "data/certified_singles_data.RData")
+
+
+# Load global variables
+load("data/certified_albums_data.RData")
+load("data/certified_singles_data.RData")
+
+# Copy the scraped table to avoid modifying the original data
+certified_albums <- certified_albums_data
+certified_singles <- certified_singles_data
+
+
+
+
+
+
+################################################################################
+# Check out the data
+
+dbGetQuery(db, "SELECT * FROM event_data_df LIMIT 5")
 
 
 
