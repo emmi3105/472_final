@@ -459,7 +459,7 @@ dbWriteTable(db, "top_tracks_2023_USA_df", top_tracks_2023_USA, overwrite = TRUE
 check_table(db, "top_tracks_2023_USA_df")
 
 
-
+################################################################################
 # Fourth table: Event Information using the Ticketmaster API
 
 # Set up the API key
@@ -641,6 +641,8 @@ dbWriteTable(db, "event_data_df", event_data, overwrite = TRUE)
 check_table(db, "event_data_df")
 
 
+################################################################################
+# Table 5: Social media data
 
 
 
