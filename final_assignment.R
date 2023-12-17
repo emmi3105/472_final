@@ -422,7 +422,7 @@ top_tracks_2023_USA <- data.frame(
   Playlist_Description = character(0),
   Track_Name = character(0),
   Track_Artist = character(0),
-  Track_ID = character(0),
+  Spotify_Track_ID = character(0),
   stringsAsFactors = FALSE
 )
 
@@ -440,7 +440,7 @@ get_playlist_info <- function(playlist_id) {
                                                                  Playlist_Description = dt$description,
                                                                  Track_Name = dt$tracks$items[[i]]$track$name,
                                                                  Track_Artist = dt$tracks$items[[i]]$track$artists[[1]]$name,
-                                                                 Track_ID = dt$tracks$items[[i]]$track$id
+                                                                 Spotify_Track_ID = dt$tracks$items[[i]]$track$id
                                                                  ))
   }
   
@@ -684,6 +684,29 @@ certified_albums <- certified_albums_data
 certified_singles <- certified_singles_data
 
 
+certified_albums <- certified_albums %>%
+  rename(Artist_Name = Name) %>%
+  mutate(Spotify_Artist_ID = ifelse(Artist_Name %in% top_hundred_artists$Artist_Name, 
+                            top_hundred_artists$Spotify_Artist_ID[match(Artist_Name, top_hundred_artists$Artist_Name)], 
+                            NA)) %>%
+  mutate(Top_Hundred = ifelse(!is.na(Spotify_Artist_ID), 1, 0))
+
+certified_singles <- certified_singles %>%
+  rename(Artist_Name = Name) %>%
+  mutate(Spotify_Artist_ID = ifelse(Artist_Name %in% top_hundred_artists$Artist_Name, 
+                                    top_hundred_artists$Spotify_Artist_ID[match(Artist_Name, top_hundred_artists$Artist_Name)], 
+                                    NA)) %>%
+  mutate(Top_Hundred = ifelse(!is.na(Spotify_Artist_ID), 1, 0))
+
+
+
+# Write certified_singles and certified_singles to the relational database
+dbWriteTable(db, "certified_albums_df", certified_albums, overwrite = TRUE)
+dbWriteTable(db, "certified_singles_df", certified_singles, overwrite = TRUE)
+
+# Call check_table on "certified_albums_df" and "certified_singles_df"
+check_table(db, "certified_albums_df")
+check_table(db, "certified_singles_df")
 
 
 
@@ -691,7 +714,38 @@ certified_singles <- certified_singles_data
 ################################################################################
 # Check out the data
 
+dbGetQuery(db, "SELECT * FROM certified_albums_df LIMIT 5")
+dbGetQuery(db, "SELECT * FROM certified_singles_df LIMIT 5")
 dbGetQuery(db, "SELECT * FROM event_data_df LIMIT 5")
+dbGetQuery(db, "SELECT * FROM top_hundred_artists_df LIMIT 5")
+dbGetQuery(db, "SELECT * FROM top_tracks_2023_USA_df LIMIT 5")
+dbGetQuery(db, "SELECT * FROM top_tracks_df LIMIT 5")
+
+
+check_table(db, "top_tracks_df")
+
+
+################################################################################
+# Data Analysis
+
+# Step 1: Are the top 100 artists still relevant?
+# Analysis of the performance on Spotify
+
+# Step 2: Most artists from the top 100 did not appear in the top tracks of 2023. 
+# Why are they ranked as the top 100 artists, nonetheless of their popularity in 2023?
+# RIAA ranking -> Seemingly, the top 100 artists align quite a bit with the top 100 artists who received the most platinum awards
+# Events -> most of the top 100 artists are dead or not performing anymore 
+
+# Step 3: Further analysis needed
+# Social media -> Likely, tracks nowadays are popular, when they go "viral" on TikTok 
+# and artists are more than just musicians but also social-media personae. It would be 
+# interesting to include social media data in the analysis of which artists are still relevant
+# We do not have social media data publicly available. However, we can do a bit of social media 
+# analysis with Spotify data.
+
+# Check the duration of the most popular songs 
+# Viral hits playlist?
+
 
 
 
