@@ -426,7 +426,7 @@ top_tracks_2023_USA <- data.frame(
   stringsAsFactors = FALSE
 )
 
-# function that gets the finance data given the ein and using the functions get_university_name and get_data
+# function that gets the playlist info given the playlist id
 get_playlist_info <- function(playlist_id) {
   
   # Get the playlist data given the playlist id
@@ -459,8 +459,158 @@ dbWriteTable(db, "top_tracks_2023_USA_df", top_tracks_2023_USA, overwrite = TRUE
 check_table(db, "top_tracks_2023_USA_df")
 
 
+# Fourth table: Top artists of 2023, USA
+
+# A playlist dataframe
+top_artists_USA_id <- "37i9dQZF1DX4dwwIoKH0j7"
+top_artists_2023_USA <- get_playlist_info(top_artists_USA_id)
+
+# However, we are not interested in the tracks here but in the artists.
+# Since some tracks have several artists associated with them, we do the following:
+
+get_tracks_23 <- function(track_id){
+  
+  # Spotify API endpoint for getting playlist details
+  endpoint <- paste0('https://api.spotify.com/v1/tracks/', track_id)
+  
+  # Set up the request headers with the access token
+  headers <- c('Authorization' = paste0('Bearer ', access_token))
+  
+  # Make the GET request
+  tracks_23_response <- GET(endpoint, add_headers(headers))
+  tracks_23_data <- content(tracks_23_response, 'parsed')
+  
+  return(tracks_23_data)
+}
+
+top_artists_2023 <- data.frame(
+  Artist_Name = character(0),
+  stringsAsFactors = FALSE
+)
+
+# function that gets the playlist info given the playlist id
+get_artists_23 <- function(track_id) {
+  
+  # Get the playlist data given the playlist id
+  dt <- get_tracks_23(track_id)
+  
+  for (i in seq(length(dt$artists))){
+    top_artists_2023 <- rbind(top_artists_2023, data.frame(Artist_Name = dt$artists[[i]]$name))
+  }
+  
+  # Return the resulting dataframe
+  return(top_artists_2023)
+}
+
+top_artists_2023 <- get_artists_23("0vjeOZ3Ft5jvAi9SBFJm1j")
+
+
+result_list <- lapply(top_artists_2023_USA$Spotify_Track_ID, get_artists_23)
+top_artists_2023 <- do.call(rbind, result_list)
+
+# We also need more information for these top artists in 2023. 
+# Artist ID
+
+
+top_artists_2023$Spotify_Artist_ID <- NA
+
+library(httr)
+access_token
+
+# Function to search for artist by name and get the artist ID
+get_artist_id <- function(artist_name) {
+  # Spotify API endpoint for searching artists by name
+  endpoint <- 'https://api.spotify.com/v1/search'
+  
+  # Set up the request parameters with a filter for artists
+  params <- list(q = artist_name, type = 'artist', limit = 1)
+  
+  # Set up the request headers with the access token
+  headers <- c('Authorization' = paste0('Bearer ', access_token))
+  
+  # Make the GET request
+  response <- GET(endpoint, query = params, add_headers(headers))
+  
+  search_result <- content(response, 'parsed')
+  
+  id <- search_result$artists$items[[1]]$id
+  
+  return(id)
+}
+
+top_artists_2023$Spotify_Artist_ID <- lapply(top_artists_2023$Artist_Name, get_artist_id)
+
+
+# Popularity
+
+top_artists_2023$Popularity <- NA
+
+# Function to search for artist by name and get the artist ID
+get_popularity <- function(artist_name) {
+  # Spotify API endpoint for searching artists by name
+  endpoint <- 'https://api.spotify.com/v1/search'
+  
+  # Set up the request parameters with a filter for artists
+  params <- list(q = artist_name, type = 'artist', limit = 1)
+  
+  # Set up the request headers with the access token
+  headers <- c('Authorization' = paste0('Bearer ', access_token))
+  
+  # Make the GET request
+  response <- GET(endpoint, query = params, add_headers(headers))
+  
+  search_result <- content(response, 'parsed')
+  
+  popularity <- search_result$artists$items[[1]]$popularity
+  
+  return(popularity)
+}
+
+top_artists_2023$Popularity <- lapply(top_artists_2023$Artist_Name, get_popularity)
+
+
+
+# Followers
+
+top_artists_2023$Followers <- NA
+
+# Function to search for artist by name and get the artist ID
+get_followers <- function(artist_name) {
+  # Spotify API endpoint for searching artists by name
+  endpoint <- 'https://api.spotify.com/v1/search'
+  
+  # Set up the request parameters with a filter for artists
+  params <- list(q = artist_name, type = 'artist', limit = 1)
+  
+  # Set up the request headers with the access token
+  headers <- c('Authorization' = paste0('Bearer ', access_token))
+  
+  # Make the GET request
+  response <- GET(endpoint, query = params, add_headers(headers))
+  
+  search_result <- content(response, 'parsed')
+  
+  followers <- search_result$artists$items[[1]]$followers$total
+  
+  return(followers)
+}
+
+top_artists_2023$Followers <- lapply(top_artists_2023$Artist_Name, get_followers)
+
+# Convert list columns to character
+top_artists_2023$Spotify_Artist_ID <- as.character(top_artists_2023$Spotify_Artist_ID)
+top_artists_2023$Popularity <- as.character(top_artists_2023$Popularity)
+top_artists_2023$Followers <- as.character(top_artists_2023$Followers)
+
+# Write top_artists_2023 to the relational database
+dbWriteTable(db, "top_artists_2023_USA_df", top_artists_2023, overwrite = TRUE)
+
+# Call check_table on "top_artists_2023_USA_df"
+check_table(db, "top_artists_2023_USA_df")
+
+
 ################################################################################
-# Fourth table: Event Information using the Ticketmaster API
+# Fifth table: Event Information using the Ticketmaster API
 
 # Set up the API key
 library("jsonlite")
@@ -722,14 +872,89 @@ dbGetQuery(db, "SELECT * FROM top_tracks_2023_USA_df LIMIT 5")
 dbGetQuery(db, "SELECT * FROM top_tracks_df LIMIT 5")
 
 
-check_table(db, "top_tracks_df")
+check_table(db, "top_tracks_2023_USA_df")
 
 
 ################################################################################
 # Data Analysis
+library(plotly)
 
 # Step 1: Are the top 100 artists still relevant?
 # Analysis of the performance on Spotify
+
+# 1A: First plot: top 100 ranking vs. followers and popularity
+
+# Create an analysis table with the data we are interested in 
+
+# 1. Column: Artist name
+# 2. Column: Artist ID
+# 3. Column: Top 100 ranking
+# 4. Column: Followers
+# 5. Column: Popularity
+
+first_query <- "
+  SELECT Artist_Name, Ranking, Spotify_Artist_ID, Followers, Popularity
+  FROM top_hundred_artists_df;
+"
+
+# Execute the query
+first_result <- dbGetQuery(db, first_query)
+ 
+# Clean the data
+first_result <- first_result %>%
+  mutate(Ranking = as.numeric(Ranking)) %>%
+  mutate(Followers_Thousand = round(Followers / 1000))
+
+# Create breaks for the ranges
+breaks <- seq(1, 101, by = 10)  # Adjust the step size as needed
+
+# Create a new column "Ranking_Range" based on the breaks
+first_result$Ranking_Range <- cut(first_result$Ranking, breaks, labels = FALSE, include.lowest = TRUE)
+
+
+# Idea: plot the followers and the popularity of the top 100 artists against the followers and popularity of the most streamed artists of 2023
+# Do the same with the top songs 
+# QUESTION: Können die rolling stones top 100 mit den spotify top 100 mithalten?
+
+
+# First ggplot: Ranking vs. Followers
+
+# Assuming first_result is your data frame
+# Create ggplot with dual y-axes
+first_plot <- ggplot(first_result, aes(x = Ranking, y = Followers, text = Artist_Name)) +
+  geom_point(size = 1.5, color="#F781BF") +
+  geom_point(aes(y = Popularity * 1000000), size = 1.5, color = "#81BEF7") +
+  # Add titles
+  labs(title = "Top 100 Ranking vs. Spotify Followers",
+       x = "Top 100 Ranking") +
+  theme_minimal() +
+  # Adjust the font size for the title and the axes
+  theme(
+    axis.text = element_text(size = 10),
+    axis.title = element_text(size = 10),
+    plot.title = element_text(size = 12)
+  ) +
+  scale_y_continuous(
+    name = "Spotify Followers",
+    labels = scales::comma_format(scale = 1e0),
+    sec.axis = sec_axis(~. * 0.000001, name = "Popularity")
+  )
+
+first_plot
+
+
+
+# Convert ggplot to interactive plotly plot
+first_plot_plotly <- ggplotly(first_plot) %>%
+  layout(font = list(family = "Arial"))
+
+# Display the interactive plot
+first_plot_plotly
+
+
+
+
+
 
 # Step 2: Most artists from the top 100 did not appear in the top tracks of 2023. 
 # Why are they ranked as the top 100 artists, nonetheless of their popularity in 2023?
