@@ -888,36 +888,108 @@ library(plotly)
 
 # 1. Column: Artist name
 # 2. Column: Artist ID
-# 3. Column: Top 100 ranking
 # 4. Column: Followers
 # 5. Column: Popularity
 
-first_query <- "
-  SELECT Artist_Name, Ranking, Spotify_Artist_ID, Followers, Popularity
+first_query_top100 <- "
+  SELECT Artist_Name, Spotify_Artist_ID, Followers, Popularity
   FROM top_hundred_artists_df;
 "
 
+first_query_top23 <- "
+  SELECT Artist_Name, Spotify_Artist_ID, Followers, Popularity
+  FROM top_artists_2023_USA_df;
+"
+
 # Execute the query
-first_result <- dbGetQuery(db, first_query)
- 
-# Clean the data
-first_result <- first_result %>%
-  mutate(Ranking = as.numeric(Ranking)) %>%
-  mutate(Followers_Thousand = round(Followers / 1000))
+first_result_top100 <- dbGetQuery(db, first_query_top100)
+first_result_top23 <- dbGetQuery(db, first_query_top23)
 
-# Create breaks for the ranges
-breaks <- seq(1, 101, by = 10)  # Adjust the step size as needed
+# Add indicators
+first_result_top100 <- first_result_top100 %>%
+  mutate(Artist_Type = "Rolling Stones Top 100") %>%
+  mutate(Followers = as.numeric(Followers)) %>%
+  mutate(Popularity = as.numeric(Popularity))
 
-# Create a new column "Ranking_Range" based on the breaks
-first_result$Ranking_Range <- cut(first_result$Ranking, breaks, labels = FALSE, include.lowest = TRUE)
+first_result_top23 <- first_result_top23 %>%
+  mutate(Artist_Type = "Spotify Top Artists 2023") %>%
+  mutate(Followers = as.numeric(Followers)) %>%
+  mutate(Popularity = as.numeric(Popularity))
+
+first_result <- rbind(first_result_top100, first_result_top23)
+
+# Calculate means
+mean_followers_top100 <- mean(first_result_top100$Followers)
+mean_followers_top23 <- mean(first_result_top23$Followers)
+
+mean_popularity_top100 <- mean(first_result_top100$Popularity)
+mean_popularity_top23 <- mean(first_result_top23$Popularity)
+
+# First Plot: Popularity vs followers 
+first_plot <- ggplot(first_result, 
+                     aes(y = Popularity, x = Followers, color = factor(Artist_Type))) +
+  geom_point(size = 1) +
+  # Add means
+  geom_point(aes(x = mean_followers_top100, y = mean_popularity_top100), color = "#F8766D", size = 3, fill = "#F8766D", shape = 23, text = "Mean Top 100") +
+  geom_point(aes(x = mean_followers_top23, y = mean_popularity_top23), color = "#00BFC4", size = 3, fill = "#00BFC4", shape = 23, text = "Mean Top 100") +
+  geom_vline(xintercept = mean_followers_top100, linetype = "dotted", color = "#F8766D") +
+  geom_hline(yintercept = mean_popularity_top100, linetype = "dotted", color = "#F8766D") +
+  geom_vline(xintercept = mean_followers_top23, linetype = "dotted", color = "#00BFC4") +
+  geom_hline(yintercept = mean_popularity_top23, linetype = "dotted", color = "#00BFC4") +
+  # Add titles
+  labs(title = "Followers vs. Popularity by Artist Type",
+       x = "Spotify Followers",
+       y = "Spotify Popularity",
+       color = "Artist Type",
+       shape = "Mean") +
+  theme_minimal() +
+  # Adjust the font size for the title and the axes
+  theme(
+    axis.text = element_text(size = 8),     
+    axis.title = element_text(size = 8),    
+    plot.title = element_text(size = 12)
+  ) +
+  # Use a logarithmic scale for the x-axis
+  scale_x_continuous(
+    labels = scales::comma_format(scale = 1),
+    trans = 'log10'
+  ) +
+  scale_y_continuous(
+    trans = 'log10'
+  )
+
+
+# Display the plot
+first_plot
+
+# Convert ggplot to interactive plotly plot
+first_plot_plotly <- ggplotly(first_plot) %>%
+  layout(font = list(family = "Arial"))
+
+# Display the interactive plot
+first_plot_plotly
+
+
+
+# Standard colors
+# Hex codes for the default ggplot2 color palette
+ggplot2_default_colors <- c(
+  "#F8766D", "#B79F00", "#00BA38", "#00BFC4", "#619CFF",
+  "#F564E3", "#8DD3C7", "#E76BF3", "#00BF7D", "#EBAC23"
+)
+
 
 
 # Idea: plot the followers and the popularity of the top 100 artists against the followers and popularity of the most streamed artists of 2023
 # Do the same with the top songs 
 # QUESTION: Können die rolling stones top 100 mit den spotify top 100 mithalten?
 
+# First plot
 
-# First ggplot: Ranking vs. Followers
+
+
+
+# Test ggplot: Ranking vs. Followers
 
 # Assuming first_result is your data frame
 # Create ggplot with dual y-axes
