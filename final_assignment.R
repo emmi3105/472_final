@@ -414,6 +414,7 @@ get_playlist <- function(playlist_id){
   return(playlist_data)
 }
 
+
 # Create an empty dataframe
 
 top_tracks_2023_USA <- data.frame(
@@ -421,8 +422,11 @@ top_tracks_2023_USA <- data.frame(
   Playlist_ID = character(0),
   Playlist_Description = character(0),
   Track_Name = character(0),
-  Track_Artist = character(0),
+  Artist_Name = character(0),
   Spotify_Track_ID = character(0),
+  Track_Duration = numeric(0),
+  Track_Popularity = numeric(0),
+  Album_Release_Date = character(0),
   stringsAsFactors = FALSE
 )
 
@@ -439,8 +443,11 @@ get_playlist_info <- function(playlist_id) {
                                                                  Playlist_ID = dt$id,
                                                                  Playlist_Description = dt$description,
                                                                  Track_Name = dt$tracks$items[[i]]$track$name,
-                                                                 Track_Artist = dt$tracks$items[[i]]$track$artists[[1]]$name,
-                                                                 Spotify_Track_ID = dt$tracks$items[[i]]$track$id
+                                                                 Artist_Name = dt$tracks$items[[i]]$track$artists[[1]]$name,
+                                                                 Spotify_Track_ID = dt$tracks$items[[i]]$track$id,
+                                                                 Track_Duration = dt$tracks$items[[i]]$track$duration_ms,
+                                                                 Track_Popularity = dt$tracks$items[[i]]$track$popularity,
+                                                                 Album_Release_Date = dt$tracks$items[[i]]$track$album$release_date
                                                                  ))
   }
   
@@ -450,6 +457,40 @@ get_playlist_info <- function(playlist_id) {
 
 top_tracks_2023_USA_id <- "37i9dQZF1DXbJMiQ53rTyJ"
 top_tracks_2023_USA <- get_playlist_info(top_tracks_2023_USA_id)
+
+
+# We will also add the artist ID for the main artist on the songs in top_tracks_2023_USA
+
+# Artist ID
+
+top_tracks_2023_USA$Spotify_Artist_ID <- NA
+
+library(httr)
+access_token
+
+# Function to search for artist by name and get the artist ID
+get_artist_id <- function(artist_name) {
+  # Spotify API endpoint for searching artists by name
+  endpoint <- 'https://api.spotify.com/v1/search'
+  
+  # Set up the request parameters with a filter for artists
+  params <- list(q = artist_name, type = 'artist', limit = 1)
+  
+  # Set up the request headers with the access token
+  headers <- c('Authorization' = paste0('Bearer ', access_token))
+  
+  # Make the GET request
+  response <- GET(endpoint, query = params, add_headers(headers))
+  
+  search_result <- content(response, 'parsed')
+  
+  id <- search_result$artists$items[[1]]$id
+  
+  return(id)
+}
+
+top_tracks_2023_USA$Spotify_Artist_ID <- lapply(top_tracks_2023_USA$Artist_Name, get_artist_id)
+top_tracks_2023_USA$Spotify_Artist_ID <- as.character(top_tracks_2023_USA$Spotify_Artist_ID)
 
 
 # Write top_tracks_2023_USA to the relational database
@@ -657,7 +698,7 @@ event_data <- data.frame(
   stringsAsFactors = FALSE
 )
 
-# function that gets the finance data given the ein and using the functions get_university_name and get_data
+# function that gets the event data given the artist name
 get_ticketmaster_info <- function(artist_name, apikey = ticketmaster_apikey) {
   
   # Get the playlist data given the playlist id
@@ -925,13 +966,15 @@ mean_followers_top23 <- mean(first_result_top23$Followers)
 mean_popularity_top100 <- mean(first_result_top100$Popularity)
 mean_popularity_top23 <- mean(first_result_top23$Popularity)
 
+manual_colors <- c("Rolling Stones Top 100" = "#F8766D", "Spotify Top Artists 2023" = "#00BFC4")
+
 # First Plot: Popularity vs followers 
 first_plot <- ggplot(first_result, 
                      aes(y = Popularity, x = Followers, color = factor(Artist_Type))) +
   geom_point(size = 1) +
   # Add means
-  geom_point(aes(x = mean_followers_top100, y = mean_popularity_top100), color = "#F8766D", size = 3, fill = "#F8766D", shape = 23, text = "Mean Top 100") +
-  geom_point(aes(x = mean_followers_top23, y = mean_popularity_top23), color = "#00BFC4", size = 3, fill = "#00BFC4", shape = 23, text = "Mean Top 100") +
+  geom_point(aes(x = mean_followers_top100, y = mean_popularity_top100), color = "#F8766D", size = 3, fill = "#F8766D", shape = 23) +
+  geom_point(aes(x = mean_followers_top23, y = mean_popularity_top23), color = "#00BFC4", size = 3, fill = "#00BFC4", shape = 23) +
   geom_vline(xintercept = mean_followers_top100, linetype = "dotted", color = "#F8766D") +
   geom_hline(yintercept = mean_popularity_top100, linetype = "dotted", color = "#F8766D") +
   geom_vline(xintercept = mean_followers_top23, linetype = "dotted", color = "#00BFC4") +
@@ -956,11 +999,13 @@ first_plot <- ggplot(first_result,
   ) +
   scale_y_continuous(
     trans = 'log10'
-  )
+  )+
+  # Manually set colors for Artist_Type
+  scale_color_manual(values = manual_colors)
 
 
 # Display the plot
-first_plot
+# first_plot
 
 # Convert ggplot to interactive plotly plot
 first_plot_plotly <- ggplotly(first_plot) %>%
@@ -969,6 +1014,106 @@ first_plot_plotly <- ggplotly(first_plot) %>%
 # Display the interactive plot
 first_plot_plotly
 
+
+# 1B: Second plot: top 100 ranking top tracks vs. top tracks 2023
+
+# Create an analysis table with the data we are interested in 
+
+# 1. Column: Track_Name
+# 2. Column: Track_ID
+# 4. Column: Track_Popularity
+# 5. Column: Track_Duration
+# 6. Column: Artist_Name
+# 7. Column: Artist_Type
+
+# Note: We only use the very first artist that is listed as the song artist and neglect the other artists that collaborated on the track
+
+second_query_top100 <- "
+  SELECT Artist_Name, Spotify_Artist_ID, Track_Name, Spotify_Track_ID, Track_Popularity, Track_Duration
+  FROM top_tracks_df;
+"
+
+second_query_top23 <- "
+  SELECT Artist_Name, Spotify_Artist_ID, Track_Name, Spotify_Track_ID, Track_Popularity, Track_Duration
+  FROM top_tracks_2023_USA_df;
+"
+
+# Execute the query
+second_result_top100 <- dbGetQuery(db, second_query_top100)
+second_result_top23 <- dbGetQuery(db, second_query_top23)
+
+# Add indicators
+second_result_top100 <- second_result_top100 %>%
+  mutate(Track_Type = "Top Tracks of the Rolling Stones Top 100") %>%
+  filter(complete.cases(.)) %>%
+  group_by(Spotify_Artist_ID) %>%
+  slice_max(Track_Popularity) %>%
+  ungroup()
+
+second_result_top23 <- second_result_top23 %>%
+  mutate(Track_Type = "Spotify Top Tracks 2023") %>%
+  filter(complete.cases(.))
+
+second_result <- rbind(second_result_top100, second_result_top23)
+
+second_result <- second_result
+
+
+# Calculate means
+mean_duration_top100 <- mean(second_result_top100$Track_Duration)
+mean_duration_top23 <- mean(second_result_top23$Track_Duration)
+
+mean_track_popularity_top100 <- mean(second_result_top100$Track_Popularity)
+mean_track_popularity_top23 <- mean(second_result_top23$Track_Popularity)
+
+manual_colors <- c("Top Tracks of the Rolling Stones Top 100" = "#F8766D", 
+                   "Spotify Top Tracks 2023" = "#00BFC4")
+
+# Second Plot: Popularity vs followers 
+second_plot <- ggplot(second_result, 
+                     aes(x = Track_Duration, y = Track_Popularity, color = factor(Track_Type))) +
+  geom_point(size = 1) +
+  # Add means
+  geom_point(aes(x = mean_duration_top100, y = mean_track_popularity_top100), color = "#F8766D", size = 3, fill = "#F8766D", shape = 23) +
+  geom_point(aes(x = mean_duration_top23, y = mean_track_popularity_top23), color = "#00BFC4", size = 3, fill = "#00BFC4", shape = 23) +
+  geom_vline(xintercept = mean_duration_top100, linetype = "dotted", color = "#F8766D") +
+  geom_hline(yintercept = mean_track_popularity_top100, linetype = "dotted", color = "#F8766D") +
+  geom_vline(xintercept = mean_duration_top23, linetype = "dotted", color = "#00BFC4") +
+  geom_hline(yintercept = mean_track_popularity_top23, linetype = "dotted", color = "#00BFC4") +
+  # Add titles
+  labs(title = "Track Popularity vs. Track Duration by Track Type",
+       x = "Track Duration (in ms)",
+       y = "Spotify Track Popularity",
+       color = "Track Type",
+       shape = "Mean") +
+  theme_minimal() +
+  # Adjust the font size for the title and the axes
+  theme(
+    axis.text = element_text(size = 8),     
+    axis.title = element_text(size = 8),    
+    plot.title = element_text(size = 12)
+  ) +
+  # Use a logarithmic scale for the x-axis
+  scale_x_continuous(
+    labels = scales::comma_format(scale = 1),
+    trans = 'log10'
+  ) +
+  scale_y_continuous(
+    trans = 'log10'
+  )+
+  # Manually set colors for Track_Type
+  scale_color_manual(values = manual_colors)
+
+
+# Display the plot
+#second_plot
+
+# Convert ggplot to interactive plotly plot
+second_plot_plotly <- ggplotly(second_plot) %>%
+  layout(font = list(family = "Arial"))
+
+# Display the interactive plot
+second_plot_plotly
 
 
 # Standard colors
