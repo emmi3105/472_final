@@ -922,6 +922,7 @@ library(plotly)
 
 # Step 1: Are the top 100 artists still relevant?
 # Analysis of the performance on Spotify
+# QUESTION: Können die rolling stones top 100 mit den spotify top 100 mithalten?
 
 # 1A: First plot: top 100 ranking vs. followers and popularity
 
@@ -1116,6 +1117,126 @@ second_plot_plotly <- ggplotly(second_plot) %>%
 second_plot_plotly
 
 
+
+# 1C: Überschneidungen Top Artists 2023 and Rolling Stones Top 100
+
+library(VennDiagram)
+library(grid)
+
+
+set1 <- first_result %>% filter(Artist_Type=="Rolling Stones Top 100") %>% select(Spotify_Artist_ID) %>% unlist()
+set2 <- first_result %>% filter(Artist_Type=="Spotify Top Artists 2023") %>% select(Spotify_Artist_ID) %>% unlist() 
+
+
+# Make the plot (eval = FALSE in RMarkdown)
+venn <- venn.diagram(
+  x = list(set1, set2),
+  category.names = c("Rolling Stones Top 100" , "Spotify Top Artists 2023"),
+  filename = 'venn_diagramm.png',
+  output=TRUE,
+  col=c('#F8766D', '#00BFC4'),
+  fill = c(alpha('#F8766D',0.3), alpha('#00BFC4',0.3)),
+  fontfamily = "arial",
+  # Output festures
+  imagetype="png",
+  height = 2000 , 
+  width = 2000 , 
+  resolution = 300,
+  # Adjust the set names
+  cat.pos = c(-14, 14),
+  cat.cex = 1, 
+  cat.col = c('#F8766D', '#00BFC4'),
+  cat.fontface = "bold",
+  cat.fontfamily = "arial",
+  # Add a title
+  main = "Intersection of Rolling Stones Top 100 and Spotify Top Artists 2023",
+  main.cex = 1.2,
+  main.fontfamily = "arial" 
+)
+
+library(png)
+library(grid)
+
+# Specify the path to your PNG file
+png_file_path <- "venn_diagramm.png"
+
+# Read the PNG file
+img <- readPNG(png_file_path)
+
+# Display the image without distortion
+grid.newpage()
+grid.raster(img, interpolate = FALSE)
+
+
+# 1D: Überschneidungen Top Tracks 2023 and Rolling Stones Top 100 Top Tracks
+
+third_query_top100 <- "
+  SELECT Artist_Name, Spotify_Artist_ID, Track_Name, Spotify_Track_ID
+  FROM top_tracks_df;
+"
+
+third_query_top23 <- "
+  SELECT Artist_Name, Spotify_Artist_ID, Track_Name, Spotify_Track_ID
+  FROM top_tracks_2023_USA_df;
+"
+
+# Execute the query
+third_result_top100 <- dbGetQuery(db, third_query_top100)
+third_result_top23 <- dbGetQuery(db, third_query_top23)
+
+# Add indicators
+third_result_top100 <- third_result_top100 %>%
+  mutate(Track_Type = "Top Tracks of the Rolling Stones Top 100") %>%
+  filter(complete.cases(.))
+
+third_result_top23 <- third_result_top23 %>%
+  mutate(Track_Type = "Spotify Top Tracks 2023") %>%
+  filter(complete.cases(.))
+
+third_result <- rbind(third_result_top100, third_result_top23)
+
+set3 <- third_result %>% filter(Track_Type=="Top Tracks of the Rolling Stones Top 100") %>% select(Spotify_Track_ID) %>% unlist()
+set4 <- third_result %>% filter(Track_Type=="Spotify Top Tracks 2023") %>% select(Spotify_Track_ID) %>% unlist() 
+
+
+# Make the plot (eval = FALSE in RMarkdown)
+venn_tracks <- venn.diagram(
+  x = list(set3, set4),
+  category.names = c("Top Tracks of the Rolling Stones Top 100" , "Spotify Top Tracks 2023"),
+  filename = 'venn_diagramm_tracks.png',
+  output=TRUE,
+  col=c('#F8766D', '#00BFC4'),
+  fill = c(alpha('#F8766D',0.3), alpha('#00BFC4',0.3)),
+  fontfamily = "arial",
+  # Output festures
+  imagetype="png",
+  height = 2000 , 
+  width = 2000 , 
+  resolution = 300,
+  # Adjust the set names
+  cat.pos = c(-14, 13.5),
+  cat.cex = 1, 
+  cat.col = c('#F8766D', '#00BFC4'),
+  cat.fontface = "bold",
+  cat.fontfamily = "arial",
+  # Add a title
+  main = "Intersection of Top Tracks: Rolling Stones Top 100 and Spotify 2023",
+  main.cex = 1.2,
+  main.fontfamily = "arial" 
+)
+
+library(png)
+library(grid)
+
+# Read the PNG file
+img_tracks <- readPNG("venn_diagramm_tracks.png")
+
+# Display the image without distortion
+grid.newpage()
+grid.raster(img_tracks, interpolate = FALSE)
+
+
+
 # Standard colors
 # Hex codes for the default ggplot2 color palette
 ggplot2_default_colors <- c(
@@ -1125,11 +1246,9 @@ ggplot2_default_colors <- c(
 
 
 
-# Idea: plot the followers and the popularity of the top 100 artists against the followers and popularity of the most streamed artists of 2023
-# Do the same with the top songs 
-# QUESTION: Können die rolling stones top 100 mit den spotify top 100 mithalten?
 
-# First plot
+
+
 
 
 
