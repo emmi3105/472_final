@@ -77,4 +77,15 @@ Data:
 - Ticketmaster API
 - Social Media data?
 
+
+
+```{r echo=FALSE,out.width="30%", out.height="30%",fig.cap="caption",fig.show='hold',fig.align='center'}
+img1 <- knitr::include_graphics("venn_diagramm.png")
+img2 <- knitr::include_graphics("venn_diagramm_groups.png")
+img3 <- knitr::include_graphics("venn_diagramm_tracks.png")
+
+knitr::include_graphics(c(img1, img2, img3))
+```
+
+
   

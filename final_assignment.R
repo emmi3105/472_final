@@ -299,12 +299,100 @@ top_hundred_artists <- data.frame(top_hundred_artists, row.names = NULL)
 # Transform the "Genres" column into type character 
 top_hundred_artists$Genres <- sapply(top_hundred_artists$Genres, function(x) paste(x, collapse = ","))
 
+
+
+# Get the release date of the latest album
+# Create an empty data frame for the top tracks
+album_data <- data.frame(
+  Spotify_Artist_ID = character(0),
+  Artist_Name = character(0),
+  Spotify_Album_ID = character(0),
+  Album_Name = character(0),
+  Album_Release_Date = character(0),
+  Number_of_Tracks = numeric(0),
+  stringsAsFactors = FALSE
+)
+
+get_album_data <- function(the_artist_id){
+  
+  album_url <- paste0('https://api.spotify.com/v1/artists/', the_artist_id, '/albums')
+  # Set up the request with the access token
+  album_response <- GET(album_url, 
+                        add_headers(Authorization = paste0('Bearer ', access_token)))
+  
+  album_info <- content(album_response)
+  
+  return(album_info)
+}
+
+# Function that gets the album data given the artist ID and using the function get_album_data
+get_albums <- function(the_artist_id) {
+  
+  # Get the data given the artist id
+  albums <- get_album_data(the_artist_id)
+  
+  # Loop through the top tracks for each artist
+  if (!is.null(albums$items) && length(albums$items) > 0) {
+    # Enter the loop
+    for (i in seq(length(albums$items))) {
+  
+      # Check and extract values, appending NA if a value is missing
+      album_data <- rbind(album_data, data.frame(
+        Spotify_Artist_ID = ifelse(!is.null(the_artist_id), the_artist_id, NA),
+        Artist_Name = ifelse(!is.null(albums$items[[i]]$artists[[1]]$name), albums$items[[i]]$artists[[1]]$name, NA),
+        Spotify_Album_ID = ifelse(!is.null(albums$items[[i]]$id), albums$items[[i]]$id, NA),
+        Album_Name = ifelse(!is.null(albums$items[[i]]$name), albums$items[[i]]$name, NA),
+        Album_Release_Date = ifelse(!is.null(albums$items[[i]]$release_date), albums$items[[i]]$release_date, NA),
+        Number_of_Tracks = ifelse(!is.null(albums$items[[i]]$total_tracks), albums$items[[i]]$total_tracks, NA)
+        ))
+    }
+  } else {
+    # Print a message or take appropriate action when top_tracks$tracks is NULL or empty
+    album_data <- rbind(album_data, data.frame(
+      Spotify_Artist_ID = the_artist_id,
+      Artist_Name = NA,
+      Spotify_Album_ID = NA,
+      Album_Name = NA,
+      Album_Release_Date = NA,
+      Number_of_Tracks = NA))
+  }
+  
+  return(album_data)
+}
+
+result_list <- lapply(top_hundred_artists$Spotify_Artist_ID, get_albums)
+album_data <- do.call(rbind, result_list)
+
+
+album_data <- album_data %>%
+  mutate(
+    is_full_date = grepl("\\d{4}-\\d{2}-\\d{2}", Album_Release_Date),
+    Album_Release_Date = case_when(
+      is_full_date ~ as.Date(Album_Release_Date, format = "%Y-%m-%d"),
+      TRUE ~ as.Date(paste0(Album_Release_Date, "-01-01"), format = "%Y-%m-%d")
+    )
+  )
+
+# Remove the temporary column
+album_data$is_full_date <- NULL
+
+# Add the latest release date to the top_hundred_artists data frame
+
+# Group by Artist_ID and find the latest album release date
+Latest_Album_Release <- album_data %>%
+  group_by(Spotify_Artist_ID) %>%
+  summarize(Latest_Album_Release = max(Album_Release_Date, na.rm = TRUE))
+
+# Merge the result back into top_hundred_artists
+top_hundred_artists <- merge(top_hundred_artists, Latest_Album_Release, by = "Spotify_Artist_ID", all.x = TRUE)
+
+top_hundred_artists$Latest_Album_Release <- as.character(top_hundred_artists$Latest_Album_Release)
+
 # Write top_hundred_artists_df to the relational database
 dbWriteTable(db, "top_hundred_artists_df", top_hundred_artists, overwrite = TRUE)
 
 # Call check_table on "top_hundred_artists_df"
 check_table(db, "top_hundred_artists_df")
-
 
 
 # Get the artist top tracks
@@ -437,7 +525,7 @@ get_playlist_info <- function(playlist_id) {
   dt <- get_playlist(playlist_id)
   
   # Loop to append values
-  for (i in seq(length(results_top_tracks_2023_USA$tracks$items))) {
+  for (i in seq(length(dt$tracks$items))) {
     # Append the values to the dataframe
     top_tracks_2023_USA <- rbind(top_tracks_2023_USA, data.frame(Playlist_Name = dt$name,
                                                                  Playlist_ID = dt$id,
@@ -650,8 +738,102 @@ dbWriteTable(db, "top_artists_2023_USA_df", top_artists_2023, overwrite = TRUE)
 check_table(db, "top_artists_2023_USA_df")
 
 
+
+# Fifth table: Top groups of 2023
+
+top_groups_2023 <- data.frame(
+  Playlist_Name = character(0),
+  Playlist_ID = character(0),
+  Playlist_Description = character(0),
+  Track_Name = character(0),
+  Artist_Name = character(0),
+  Spotify_Track_ID = character(0),
+  Track_Duration = numeric(0),
+  Track_Popularity = numeric(0),
+  Album_Release_Date = character(0),
+  stringsAsFactors = FALSE
+)
+
+# A playlist dataframe
+top_groups_2023_id <- "37i9dQZF1DX6Q49slBRXI2"
+
+get_playlist_info <- function(playlist_id, dt_frame) {
+  
+  # Get the playlist data given the playlist id
+  dt <- get_playlist(playlist_id)
+  
+  # Loop to append values
+  for (i in seq(length(dt$tracks$items))) {
+    # Append the values to the dataframe
+    dt_frame <- rbind(dt_frame, data.frame(Playlist_Name = dt$name,
+                                           Playlist_ID = dt$id,
+                                           Playlist_Description = dt$description,
+                                           Track_Name = dt$tracks$items[[i]]$track$name,
+                                           Artist_Name = dt$tracks$items[[i]]$track$artists[[1]]$name,
+                                           Spotify_Track_ID = dt$tracks$items[[i]]$track$id,
+                                           Track_Duration = dt$tracks$items[[i]]$track$duration_ms,
+                                           Track_Popularity = dt$tracks$items[[i]]$track$popularity,
+                                           Album_Release_Date = dt$tracks$items[[i]]$track$album$release_date
+    ))
+  }
+  
+  # Return the resulting dataframe
+  return(dt_frame)
+}
+
+top_groups_2023_dt <- get_playlist_info(top_groups_2023_id, top_groups_2023)
+
+# Get the track info from the playlist 
+top_groups_2023 <- data.frame(
+  Artist_Name = character(0),
+  stringsAsFactors = FALSE
+)
+
+# Function that gets the artist info given the track id
+get_artists_23 <- function(track_id) {
+  
+  # Get the playlist data given the playlist id
+  dt <- get_tracks_23(track_id)
+  
+  for (i in seq(length(dt$artists))){
+    top_groups_2023 <- rbind(top_groups_2023, data.frame(Artist_Name = dt$artists[[i]]$name))
+  }
+  
+  # Return the resulting dataframe
+  return(top_groups_2023)
+}
+
+result_list <- lapply(top_groups_2023_dt$Spotify_Track_ID, get_artists_23)
+top_groups_2023 <- do.call(rbind, result_list)
+
+# Again, we will get more infos on the artists
+
+# Artist ID
+top_groups_2023$Spotify_Artist_ID <- NA
+top_groups_2023$Spotify_Artist_ID <- lapply(top_groups_2023$Artist_Name, get_artist_id)
+
+# Artist Popularity
+top_groups_2023$Popularity <- NA
+top_groups_2023$Popularity <- lapply(top_groups_2023$Artist_Name, get_popularity)
+
+# Artist Followers
+top_groups_2023$Followers <- NA
+top_groups_2023$Followers <- lapply(top_groups_2023$Artist_Name, get_followers)
+
+# Convert list columns to character
+top_groups_2023$Spotify_Artist_ID <- as.character(top_groups_2023$Spotify_Artist_ID)
+top_groups_2023$Popularity <- as.character(top_groups_2023$Popularity)
+top_groups_2023$Followers <- as.character(top_groups_2023$Followers)
+
+# Write top_groups_2023 to the relational database
+dbWriteTable(db, "top_groups_2023_df", top_groups_2023, overwrite = TRUE)
+
+# Call check_table on "top_groups_2023_df"
+check_table(db, "top_groups_2023_df")
+
+
 ################################################################################
-# Fifth table: Event Information using the Ticketmaster API
+# Sixth table: Event Information using the Ticketmaster API
 
 # Set up the API key
 library("jsonlite")
@@ -1237,6 +1419,167 @@ grid.raster(img_tracks, interpolate = FALSE)
 
 
 
+# 1E: Überschneidungen Top Groups 2023 and Rolling Stones Top 100
+
+
+fourth_query_top23 <- "
+  SELECT Artist_Name, Spotify_Artist_ID, Followers, Popularity
+  FROM top_groups_2023_df;
+"
+
+# Execute the query
+fourth_result_top23 <- dbGetQuery(db, fourth_query_top23)
+
+# Add indicators
+fourth_result_top23 <- fourth_result_top23 %>%
+  mutate(Artist_Type = "Spotify Top Groups 2023") %>%
+  filter(complete.cases(.))
+
+fourth_result <- rbind(first_result_top100, fourth_result_top23)
+
+set5 <- fourth_result %>% filter(Artist_Type=="Rolling Stones Top 100") %>% select(Spotify_Artist_ID) %>% unlist()
+set6 <- fourth_result %>% filter(Artist_Type=="Spotify Top Groups 2023") %>% select(Spotify_Artist_ID) %>% unlist() 
+
+
+# Make the plot (eval = FALSE in RMarkdown)
+venn_groups <- venn.diagram(
+  x = list(set5, set6),
+  category.names = c("Rolling Stones Top 100" , "Spotify Top Groups 2023"),
+  filename = 'venn_diagramm_groups.png',
+  output=TRUE,
+  col=c('#F8766D', '#00BFC4'),
+  fill = c(alpha('#F8766D',0.3), alpha('#00BFC4',0.3)),
+  fontfamily = "arial",
+  # Output festures
+  imagetype="png",
+  height = 2000 , 
+  width = 2000 , 
+  resolution = 300,
+  # Adjust the set names
+  cat.pos = c(-14, 13.5),
+  cat.cex = 1, 
+  cat.col = c('#F8766D', '#00BFC4'),
+  cat.fontface = "bold",
+  cat.fontfamily = "arial",
+  # Add a title
+  main = "Intersection of Top Groups: Rolling Stones Top 100 and Spotify 2023",
+  main.cex = 1.2,
+  main.fontfamily = "arial" 
+)
+
+library(png)
+library(grid)
+
+# Read the PNG file
+img_groups <- readPNG("venn_diagramm_groups.png")
+
+# Display the image without distortion
+grid.newpage()
+grid.raster(img_groups, interpolate = FALSE)
+
+
+
+# SO: only ten of the hundred Rolling Stones artists appear in the Spotify top artists/groups of 2023
+# What makes these musicians different from the others
+
+
+# IDEA 1: Album/Song releases
+# Potentially, the artists that keep releasing new songs/albums still endure compared to artists who do not release new music or are potentially even split up/passed away
+
+fifth_query_top100 <- "
+  SELECT Artist_Name, Spotify_Artist_ID, Followers, Popularity, FORMAT(Latest_Album_Release, 'yyyy-MM-dd') as Latest_Album_Release
+  FROM top_hundred_artists_df;
+"
+
+# Execute the query
+fifth_result_top100 <- dbGetQuery(db, fifth_query_top100)
+
+fifth_result_top100$Top_Group_23 <- as.integer(fifth_result_top100$Spotify_Artist_ID %in% fourth_result_top23$Spotify_Artist_ID)
+fifth_result_top100$Top_Artist_23 <- as.integer(fifth_result_top100$Spotify_Artist_ID %in% first_result_top23$Spotify_Artist_ID)
+
+fifth_result_top100 <- fifth_result_top100 %>%
+  mutate(Top_23 = Top_Group_23 + Top_Artist_23) %>%
+  select(-Top_Group_23, -Top_Artist_23) %>%
+  mutate(Latest_Album_Release = as.Date(Latest_Album_Release, format = "%Y-%m-%d"))
+
+
+manual_colors <- c("0" = "#F8766D", "1" = "#00BFC4")
+manual_labels <- c("0" = "Only Rolling Stones Top 100", "1" = "Also Spotify Top Artist/Group 2023")
+
+# Fifth Plot A: Popularity vs Latest album release date 
+fifth_plot_popularity <- ggplot(fifth_result_top100, 
+                     aes(x = Latest_Album_Release, y = Popularity, color = factor(Top_23))) +
+  geom_point(size = 1) +
+  # Add titles
+  labs(title = "Latest Album Release Date vs. Popularity",
+       x = "Latest Album Release Date",
+       y = "Spotify Popularity",
+       color = "Ranking Appearance") +
+  theme_minimal() +
+  # Adjust the font size for the title and the axes
+  theme(
+    axis.text = element_text(size = 8),     
+    axis.title = element_text(size = 8),    
+    plot.title = element_text(size = 12)
+  ) +
+  # Manually set colors for Artist_Type
+  scale_color_manual(values = manual_colors, labels = manual_labels)
+
+
+# Display the plot
+fifth_plot_popularity
+
+
+# Fifth Plot B: Followers vs Latest album release date 
+fifth_plot_followers <- ggplot(fifth_result_top100, 
+                     aes(x = Latest_Album_Release, y = Followers, color = factor(Top_23))) +
+  geom_point(size = 1) +
+  # Add titles
+  labs(title = "Latest Album Release Date vs. Followers",
+       x = "Latest Album Release Date",
+       y = "Spotify Followers",
+       color = "Ranking Appearance") +
+  theme_minimal() +
+  # Adjust the font size for the title and the axes
+  theme(
+    axis.text = element_text(size = 8),     
+    axis.title = element_text(size = 8),    
+    plot.title = element_text(size = 12)
+  ) +
+  # Manually set colors for Artist_Type
+  scale_color_manual(values = manual_colors, labels = manual_labels) +
+  scale_y_continuous(
+    labels = scales::comma_format(scale = 1)
+    #trans = 'log10'
+  ) 
+
+# Display the plot
+fifth_plot_followers
+
+
+
+# Display the two plots beneath each other
+library(cowplot)
+
+# Arrange the two plots vertically
+fifth_plot <- plot_grid(fifth_plot_popularity, fifth_plot_followers, ncol = 1)
+
+# Display the combined plot
+fifth_plot
+
+
+
+######################
+## RESULTS
+# Seemingly, there might be three factors that induce endurement
+# 1. new releases which might push
+# 2. popularity
+# 3. followers
+# 4. endurement 
+# Henneh-Ei problem: from this simple analysis, we cannot conclude which of these factors induces the other, we would need a more thorough analysis using statistical tools (e.g., regression) and tests
+
+
+
 # Standard colors
 # Hex codes for the default ggplot2 color palette
 ggplot2_default_colors <- c(
@@ -1251,53 +1594,21 @@ ggplot2_default_colors <- c(
 
 
 
-
-
-# Test ggplot: Ranking vs. Followers
-
-# Assuming first_result is your data frame
-# Create ggplot with dual y-axes
-first_plot <- ggplot(first_result, aes(x = Ranking, y = Followers, text = Artist_Name)) +
-  geom_point(size = 1.5, color="#F781BF") +
-  geom_point(aes(y = Popularity * 1000000), size = 1.5, color = "#81BEF7") +
-  # Add titles
-  labs(title = "Top 100 Ranking vs. Spotify Followers",
-       x = "Top 100 Ranking") +
-  theme_minimal() +
-  # Adjust the font size for the title and the axes
-  theme(
-    axis.text = element_text(size = 10),
-    axis.title = element_text(size = 10),
-    plot.title = element_text(size = 12)
-  ) +
-  scale_y_continuous(
-    name = "Spotify Followers",
-    labels = scales::comma_format(scale = 1e0),
-    sec.axis = sec_axis(~. * 0.000001, name = "Popularity")
-  )
-
-first_plot
-
-
-
-# Convert ggplot to interactive plotly plot
-first_plot_plotly <- ggplotly(first_plot) %>%
-  layout(font = list(family = "Arial"))
-
-# Display the interactive plot
-first_plot_plotly
+# Step 2: Followers and popularity vs. latest album release date 
+# Popularity vs. Album release date
+# Album release dates 
 
 
 
 
-
-
-# Step 2: Most artists from the top 100 did not appear in the top tracks of 2023. 
+# Step 3: Most artists from the top 100 did not appear in the top tracks of 2023. 
 # Why are they ranked as the top 100 artists, nonetheless of their popularity in 2023?
 # RIAA ranking -> Seemingly, the top 100 artists align quite a bit with the top 100 artists who received the most platinum awards
 # Events -> most of the top 100 artists are dead or not performing anymore 
 
-# Step 3: Further analysis needed
+# Spotify does not clarify how many streams a song has and how many monthly listeners they have 
+
+# Step 4: Further analysis needed
 # Social media -> Likely, tracks nowadays are popular, when they go "viral" on TikTok 
 # and artists are more than just musicians but also social-media personae. It would be 
 # interesting to include social media data in the analysis of which artists are still relevant
