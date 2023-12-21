@@ -1082,6 +1082,15 @@ check_table(db, "certified_albums_df")
 check_table(db, "certified_singles_df")
 
 
+################################################################################
+# Table 6: Grammys
+
+# As of 21. December 2023, the Grammy website permits webscraping: https://www.recordingacademy.com/legal
+
+
+
+
+
 
 
 ################################################################################
@@ -1580,6 +1589,226 @@ fifth_plot
 
 
 
+
+
+# Step 3: Additional analysis
+
+# Most artists from the top 100 did not appear in the top tracks of 2023. 
+# Why are they ranked as the top 100 artists, nonetheless of their popularity in 2023?
+
+# RIAA certification
+
+# 3A: Intersections RIAA most ranked and Rolling Stones Top 100
+
+sixth_query_albums <- "
+  SELECT Spotify_Artist_ID, Rank AS RIAA_Rank, Top_Hundred
+  FROM certified_albums_df 
+  ;
+"
+
+sixth_query_singles <- "
+  SELECT Spotify_Artist_ID, Rank AS RIAA_Rank, Top_Hundred
+  FROM certified_singles_df 
+  ;
+"
+
+# Execute the query
+sixth_result_albums <- dbGetQuery(db, sixth_query_albums)
+sixth_result_singles <- dbGetQuery(db, sixth_query_singles)
+
+
+# Add indicators
+sixth_result_albums <- sixth_result_albums %>%
+  mutate("RIAA_Ranking_Type" = "Albums")
+
+sixth_result_singles <- sixth_result_singles %>%
+  mutate("RIAA_Ranking_Type" = "Singles")
+
+sixth_result <- rbind(sixth_result_albums, sixth_result_singles)
+
+sixth_result$Spotify_Artist_ID <- ifelse(is.na(sixth_result$Spotify_Artist_ID), 
+                                         paste0("index", seq_along(sixth_result$Spotify_Artist_ID)), 
+                                         sixth_result$Spotify_Artist_ID)
+
+# Create sets for the venn diagrams
+set7 <- sixth_result %>% filter(RIAA_Ranking_Type=="Albums") %>% select(Spotify_Artist_ID) %>% unlist()
+set8 <- sixth_result %>% filter(RIAA_Ranking_Type=="Singles") %>% select(Spotify_Artist_ID) %>% unlist() 
+set9 <- first_result_top100 %>% select(Spotify_Artist_ID) %>% unlist() 
+
+
+# Make the plots (eval = FALSE in RMarkdown)
+venn_riaa_albums <- venn.diagram(
+  x = list(set9, set7),
+  category.names = c("Rolling Stones Top 100" , "RIAA albums"),
+  filename = 'venn_diagramm_riaa_albums.png',
+  output=TRUE,
+  col=c('#F8766D', '#F564E3'),
+  fill = c(alpha('#F8766D',0.3), alpha('#F564E3',0.3)),
+  fontfamily = "arial",
+  # Output festures
+  imagetype="png",
+  height = 2000 , 
+  width = 2000 , 
+  resolution = 300,
+  # Adjust the set names
+  cat.pos = c(-14, 13.5),
+  cat.cex = 1, 
+  cat.col = c('#F8766D', '#F564E3'),
+  cat.fontface = "bold",
+  cat.fontfamily = "arial",
+  # Add a title
+  main = "RS-T100 and RIAA most certified albums",
+  main.cex = 1.2,
+  main.fontfamily = "arial" 
+)
+
+venn_riaa_singles <- venn.diagram(
+  x = list(set9, set8),
+  category.names = c("Rolling Stones Top 100" , "RIAA singles"),
+  filename = 'venn_diagramm_riaa_singles.png',
+  output=TRUE,
+  col=c('#F8766D', '#00BA38'),
+  fill = c(alpha('#F8766D',0.3), alpha('#00BA38',0.3)),
+  fontfamily = "arial",
+  # Output festures
+  imagetype="png",
+  height = 2000 , 
+  width = 2000 , 
+  resolution = 300,
+  # Adjust the set names
+  cat.pos = c(-14, 13.5),
+  cat.cex = 1, 
+  cat.col = c('#F8766D', '#00BA38'),
+  cat.fontface = "bold",
+  cat.fontfamily = "arial",
+  # Add a title
+  main = "RS-T100 and RIAA most certified singles",
+  main.cex = 1.2,
+  main.fontfamily = "arial" 
+)
+
+
+
+
+
+
+
+
+
+
+# Read the PNG file
+img_riaa_albums <- readPNG("venn_diagramm_riaa_albums.png")
+
+
+
+# Create sets for the Venn diagram
+venn_input <- list(
+  "Rolling Stones Top 100" = sixth_result$Spotify_Artist_ID,
+  "Top 100 most RIAA certified albums" = first_result_top100$Spotify_Artist_ID
+)
+
+# Plot the Venn diagram
+venn.plot <- venn.plot(
+  venn_input,
+  category.names = c("Rolling Stones Top 100", "Top 100 most RIAA certified albums"),
+  filename = 'venn_diagramm_riaa_albums.png',
+  output = TRUE,
+  col = c('#F8766D', '#F564E3'),
+  fill = c(alpha('#F8766D', 0.3), alpha('#F564E3', 0.3)),
+  fontfamily = "arial",
+  # Output features
+  imagetype = "png",
+  height = 4000,
+  width = 4000,
+  resolution = 300,
+  # Adjust the set names
+  cat.pos = c(-14, 13.5),
+  cat.cex = 1,
+  cat.col = c('#F8766D', '#F564E3'),
+  cat.fontface = "bold",
+  cat.fontfamily = "arial",
+  # Add a title
+  main = "Intersection of Rolling Stones Top 100 and Top 100 most RIAA certified albums",
+  main.cex = 1.2,
+  main.fontfamily = "arial"
+)
+
+# Display the Venn diagram
+grid.draw(venn.plot)
+
+
+
+
+
+
+
+
+
+
+# 3B: Top 100 Rank vs. Album/Singles rank
+
+sixth_query_top100 <- "
+  SELECT Spotify_Artist_ID, Ranking AS Rolling_Stones_Rank
+  FROM top_hundred_artists_df 
+  ;
+"
+
+# Execute the query
+sixth_result_top100 <- dbGetQuery(db, sixth_query_top100)
+
+# Filter only for the top 100
+sixth_result_albums <- sixth_result_albums %>%
+  filter(Top_Hundred == 1)  %>%
+  left_join(sixth_result_top100, by = "Spotify_Artist_ID") %>%
+  select(-Top_Hundred) 
+
+sixth_result_singles <- sixth_result_singles %>%
+  filter(Top_Hundred == 1)  %>%
+  left_join(sixth_result_top100, by = "Spotify_Artist_ID") %>%
+  select(-Top_Hundred) 
+
+sixth_result <- rbind(sixth_result_albums, sixth_result_singles)
+
+sixth_result <- sixth_result %>%
+  mutate("Rolling_Stones_Rank" = as.numeric(Rolling_Stones_Rank),
+         "RIAA_Rank" = as.numeric(RIAA_Rank)
+         )
+
+manual_colors <- c("Albums" = "#F564E3", 
+                   "Singles" = "#00BA38")
+
+# Plot: Top 100 Ranking vs RIAA certification
+sixth_plot <- ggplot(sixth_result,
+                     aes(x = Rolling_Stones_Rank, y = RIAA_Rank, color = factor(RIAA_Ranking_Type))) +
+  geom_point(size = 1) +
+  # Add titles
+  labs(title = "Rolling Stones vs. RIAA Rankings",
+       x = "Rolling Stones Ranking",
+       y = "RIAA Ranking",
+       color = "RIAA Ranking Type") +
+  theme_minimal() +
+  # Adjust the font size for the title and the axes
+  theme(
+    axis.text = element_text(size = 8),     
+    axis.title = element_text(size = 8),    
+    plot.title = element_text(size = 12)
+  ) +
+  # Manually set colors for Artist_Type
+  scale_color_manual(values = manual_colors, labels = manual_labels)
+
+# Convert ggplot to interactive plotly plot
+sixth_plot_plotly <- ggplotly(sixth_plot) %>%
+  layout(font = list(family = "Arial"))
+
+# Display the interactive plot
+sixth_plot_plotly
+
+
+
+
+
+
+
 # Standard colors
 # Hex codes for the default ggplot2 color palette
 ggplot2_default_colors <- c(
@@ -1594,9 +1823,6 @@ ggplot2_default_colors <- c(
 
 
 
-# Step 2: Followers and popularity vs. latest album release date 
-# Popularity vs. Album release date
-# Album release dates 
 
 
 
