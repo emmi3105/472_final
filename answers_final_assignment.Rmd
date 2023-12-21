@@ -26,6 +26,11 @@ library(httr)
 library(base64enc)
 library(jsonlite)
 library(rvest)
+library(plotly)
+library(VennDiagram)
+library(grid)
+library(png)
+library(cowplot)
 ```
 
 
@@ -1135,17 +1140,360 @@ check_table(db, "certified_singles_df")
 
 ### A. Are the Rolling Stones Top 100 still relevant in 2023?
 
-**Findings**: Although the Rolling Stones top 100 have, on average, high values for Followers and Popularity on Spotify, they seem to not quite be on the same level as the most popular artists of 2023.
+#### Popularity: Rolling Stones vs. Spotify Top 100
 
-**Questions**: Within the Rolling Stones top 100, can we sort out some patterns? Are some of these artists more popular nowadays than others, and if so, why?
+```{r plot 1 (Rolling Stones vs. Spotify top 100), warning=FALSE}
 
-```{r echo=FALSE,out.width="30%", out.height="30%",fig.cap="caption",fig.show='hold',fig.align='center'}
+# Create an analysis table with the data we are interested in 
+
+# 1. Column: Artist name
+# 2. Column: Artist ID
+# 4. Column: Followers
+# 5. Column: Popularity
+
+first_query_top100 <- "
+  SELECT Artist_Name, Spotify_Artist_ID, Followers, Popularity
+  FROM top_hundred_artists_df;
+"
+
+first_query_top23 <- "
+  SELECT Artist_Name, Spotify_Artist_ID, Followers, Popularity
+  FROM top_artists_2023_USA_df;
+"
+
+# Execute the query
+first_result_top100 <- dbGetQuery(db, first_query_top100)
+first_result_top23 <- dbGetQuery(db, first_query_top23)
+
+# Add indicators
+first_result_top100 <- first_result_top100 %>%
+  mutate(Artist_Type = "Rolling Stones Top 100") %>%
+  mutate(Followers = as.numeric(Followers)) %>%
+  mutate(Popularity = as.numeric(Popularity))
+
+first_result_top23 <- first_result_top23 %>%
+  mutate(Artist_Type = "Spotify Top Artists 2023") %>%
+  mutate(Followers = as.numeric(Followers)) %>%
+  mutate(Popularity = as.numeric(Popularity))
+
+first_result <- rbind(first_result_top100, first_result_top23)
+
+# Calculate means
+mean_followers_top100 <- mean(first_result_top100$Followers)
+mean_followers_top23 <- mean(first_result_top23$Followers)
+
+mean_popularity_top100 <- mean(first_result_top100$Popularity)
+mean_popularity_top23 <- mean(first_result_top23$Popularity)
+
+manual_colors <- c("Rolling Stones Top 100" = "#F8766D", "Spotify Top Artists 2023" = "#00BFC4")
+
+# First Plot: Popularity vs followers 
+first_plot <- ggplot(first_result, 
+                     aes(y = Popularity, x = Followers, color = factor(Artist_Type))) +
+  geom_point(size = 1) +
+  # Add means
+  geom_point(aes(x = mean_followers_top100, y = mean_popularity_top100), color = "#F8766D", size = 3, fill = "#F8766D", shape = 23) +
+  geom_point(aes(x = mean_followers_top23, y = mean_popularity_top23), color = "#00BFC4", size = 3, fill = "#00BFC4", shape = 23) +
+  geom_vline(xintercept = mean_followers_top100, linetype = "dotted", color = "#F8766D") +
+  geom_hline(yintercept = mean_popularity_top100, linetype = "dotted", color = "#F8766D") +
+  geom_vline(xintercept = mean_followers_top23, linetype = "dotted", color = "#00BFC4") +
+  geom_hline(yintercept = mean_popularity_top23, linetype = "dotted", color = "#00BFC4") +
+  # Add titles
+  labs(title = "Followers vs. Popularity by Artist Type",
+       x = "Spotify Followers",
+       y = "Spotify Popularity",
+       color = "Artist Type",
+       shape = "Mean") +
+  theme_minimal() +
+  # Adjust the font size for the title and the axes
+  theme(
+    axis.text = element_text(size = 8),     
+    axis.title = element_text(size = 8),    
+    plot.title = element_text(size = 12)
+  ) +
+  # Use a logarithmic scale for the x-axis
+  scale_x_continuous(
+    labels = scales::comma_format(scale = 1),
+    trans = 'log10'
+  ) +
+  scale_y_continuous(
+    trans = 'log10'
+  )+
+  # Manually set colors for Artist_Type
+  scale_color_manual(values = manual_colors)
+
+# Convert ggplot to interactive plotly plot
+first_plot_plotly <- ggplotly(first_plot) %>%
+  layout(font = list(family = "Arial"))
+
+# Display the interactive plot
+first_plot_plotly
+```
+
+#### Tracks: Rolling Stones vs. Spotify Top 100 
+
+```{r plot 2 (Rolling Stones vs. Spotify top 100 Tracks), warning=FALSE}
+
+# 1B: Second plot: top 100 ranking top tracks vs. top tracks 2023
+
+# Create an analysis table with the data we are interested in 
+
+# 1. Column: Track_Name
+# 2. Column: Track_ID
+# 4. Column: Track_Popularity
+# 5. Column: Track_Duration
+# 6. Column: Artist_Name
+# 7. Column: Artist_Type
+
+# Note: We only use the very first artist that is listed as the song artist and neglect the other artists that collaborated on the track
+
+second_query_top100 <- "
+  SELECT Artist_Name, Spotify_Artist_ID, Track_Name, Spotify_Track_ID, Track_Popularity, Track_Duration
+  FROM top_tracks_df;
+"
+
+second_query_top23 <- "
+  SELECT Artist_Name, Spotify_Artist_ID, Track_Name, Spotify_Track_ID, Track_Popularity, Track_Duration
+  FROM top_tracks_2023_USA_df;
+"
+
+# Execute the query
+second_result_top100 <- dbGetQuery(db, second_query_top100)
+second_result_top23 <- dbGetQuery(db, second_query_top23)
+
+# Add indicators
+second_result_top100 <- second_result_top100 %>%
+  mutate(Track_Type = "Top Tracks of the Rolling Stones Top 100") %>%
+  filter(complete.cases(.)) %>%
+  group_by(Spotify_Artist_ID) %>%
+  slice_max(Track_Popularity) %>%
+  ungroup()
+
+second_result_top23 <- second_result_top23 %>%
+  mutate(Track_Type = "Spotify Top Tracks 2023") %>%
+  filter(complete.cases(.))
+
+second_result <- rbind(second_result_top100, second_result_top23)
+
+second_result <- second_result
+
+
+# Calculate means
+mean_duration_top100 <- mean(second_result_top100$Track_Duration)
+mean_duration_top23 <- mean(second_result_top23$Track_Duration)
+
+mean_track_popularity_top100 <- mean(second_result_top100$Track_Popularity)
+mean_track_popularity_top23 <- mean(second_result_top23$Track_Popularity)
+
+manual_colors <- c("Top Tracks of the Rolling Stones Top 100" = "#F8766D", 
+                   "Spotify Top Tracks 2023" = "#00BFC4")
+
+# Second Plot: Popularity vs followers 
+second_plot <- ggplot(second_result, 
+                     aes(x = Track_Duration, y = Track_Popularity, color = factor(Track_Type))) +
+  geom_point(size = 1) +
+  # Add means
+  geom_point(aes(x = mean_duration_top100, y = mean_track_popularity_top100), color = "#F8766D", size = 3, fill = "#F8766D", shape = 23) +
+  geom_point(aes(x = mean_duration_top23, y = mean_track_popularity_top23), color = "#00BFC4", size = 3, fill = "#00BFC4", shape = 23) +
+  geom_vline(xintercept = mean_duration_top100, linetype = "dotted", color = "#F8766D") +
+  geom_hline(yintercept = mean_track_popularity_top100, linetype = "dotted", color = "#F8766D") +
+  geom_vline(xintercept = mean_duration_top23, linetype = "dotted", color = "#00BFC4") +
+  geom_hline(yintercept = mean_track_popularity_top23, linetype = "dotted", color = "#00BFC4") +
+  # Add titles
+  labs(title = "Track Popularity vs. Track Duration by Track Type",
+       x = "Track Duration (in ms)",
+       y = "Spotify Track Popularity",
+       color = "Track Type",
+       shape = "Mean") +
+  theme_minimal() +
+  # Adjust the font size for the title and the axes
+  theme(
+    axis.text = element_text(size = 8),     
+    axis.title = element_text(size = 8),    
+    plot.title = element_text(size = 12)
+  ) +
+  # Use a logarithmic scale for the x-axis
+  scale_x_continuous(
+    labels = scales::comma_format(scale = 1),
+    trans = 'log10'
+  ) +
+  scale_y_continuous(
+    trans = 'log10'
+  )+
+  # Manually set colors for Track_Type
+  scale_color_manual(values = manual_colors)
+
+# Convert ggplot to interactive plotly plot
+second_plot_plotly <- ggplotly(second_plot) %>%
+  layout(font = list(family = "Arial"))
+
+# Display the interactive plot
+second_plot_plotly
+```
+
+#### Intersections: Rolling Stones vs. Spotify Top 100
+
+```{r venn diagrams, eval=FALSE}
+# First venn diagram: Rolling Stones Top 100 & Spotify Top Artists of 2023
+
+set1 <- first_result %>% filter(Artist_Type=="Rolling Stones Top 100") %>% select(Spotify_Artist_ID) %>% unlist()
+set2 <- first_result %>% filter(Artist_Type=="Spotify Top Artists 2023") %>% select(Spotify_Artist_ID) %>% unlist()
+
+# Make the plot
+venn <- venn.diagram(
+  x = list(set1, set2),
+  category.names = c("Rolling Stones Top 100" , "Spotify Top Artists 2023"),
+  filename = 'venn_diagramm.png',
+  output=TRUE,
+  col=c('#F8766D', '#00BFC4'),
+  fill = c(alpha('#F8766D',0.3), alpha('#00BFC4',0.3)),
+  fontfamily = "arial",
+  # Output festures
+  imagetype="png",
+  height = 2000 , 
+  width = 2000 , 
+  resolution = 300,
+  # Adjust the set names
+  cat.pos = c(-14, 14),
+  cat.cex = 1, 
+  cat.col = c('#F8766D', '#00BFC4'),
+  cat.fontface = "bold",
+  cat.fontfamily = "arial",
+  # Add a title
+  main = "Intersection of Rolling Stones Top 100 and Spotify Top Artists 2023",
+  main.cex = 1.2,
+  main.fontfamily = "arial" 
+)
+
+# Second venn diagram: Rolling Stones Top Tracks & Spotify Top Tracks of 2023
+
+third_query_top100 <- "
+  SELECT Artist_Name, Spotify_Artist_ID, Track_Name, Spotify_Track_ID
+  FROM top_tracks_df;
+"
+
+third_query_top23 <- "
+  SELECT Artist_Name, Spotify_Artist_ID, Track_Name, Spotify_Track_ID
+  FROM top_tracks_2023_USA_df;
+"
+
+# Execute the query
+third_result_top100 <- dbGetQuery(db, third_query_top100)
+third_result_top23 <- dbGetQuery(db, third_query_top23)
+
+# Add indicators
+third_result_top100 <- third_result_top100 %>%
+  mutate(Track_Type = "Top Tracks of the Rolling Stones Top 100") %>%
+  filter(complete.cases(.))
+
+third_result_top23 <- third_result_top23 %>%
+  mutate(Track_Type = "Spotify Top Tracks 2023") %>%
+  filter(complete.cases(.))
+
+third_result <- rbind(third_result_top100, third_result_top23)
+
+set3 <- third_result %>% filter(Track_Type=="Top Tracks of the Rolling Stones Top 100") %>% select(Spotify_Track_ID) %>% unlist()
+set4 <- third_result %>% filter(Track_Type=="Spotify Top Tracks 2023") %>% select(Spotify_Track_ID) %>% unlist() 
+
+# Make the plot
+venn_tracks <- venn.diagram(
+  x = list(set3, set4),
+  category.names = c("Top Tracks of the Rolling Stones Top 100" , "Spotify Top Tracks 2023"),
+  filename = 'venn_diagramm_tracks.png',
+  output=TRUE,
+  col=c('#F8766D', '#00BFC4'),
+  fill = c(alpha('#F8766D',0.3), alpha('#00BFC4',0.3)),
+  fontfamily = "arial",
+  # Output festures
+  imagetype="png",
+  height = 2000 , 
+  width = 2000 , 
+  resolution = 300,
+  # Adjust the set names
+  cat.pos = c(-14, 13.5),
+  cat.cex = 1, 
+  cat.col = c('#F8766D', '#00BFC4'),
+  cat.fontface = "bold",
+  cat.fontfamily = "arial",
+  # Add a title
+  main = "Intersection of Top Tracks: Rolling Stones Top 100 and Spotify 2023",
+  main.cex = 1.2,
+  main.fontfamily = "arial" 
+)
+```
+
+
+```{r third venn diagram groups get data}
+
+# Third venn diagram: Rolling Stones Top 100 & Spotify Top Groups of 2023
+
+fourth_query_top23 <- "
+  SELECT Artist_Name, Spotify_Artist_ID, Followers, Popularity
+  FROM top_groups_2023_df;
+"
+
+# Execute the query
+fourth_result_top23 <- dbGetQuery(db, fourth_query_top23)
+
+# Add indicators
+fourth_result_top23 <- fourth_result_top23 %>%
+  mutate(Artist_Type = "Spotify Top Groups 2023") %>%
+  filter(complete.cases(.))
+
+fourth_result <- rbind(first_result_top100, fourth_result_top23)
+
+set5 <- fourth_result %>% filter(Artist_Type=="Rolling Stones Top 100") %>% select(Spotify_Artist_ID) %>% unlist()
+set6 <- fourth_result %>% filter(Artist_Type=="Spotify Top Groups 2023") %>% select(Spotify_Artist_ID) %>% unlist()
+```
+
+
+```{r third venn diagram groups, eval=FALSE}
+# Make the plot (eval = FALSE in RMarkdown)
+venn_groups <- venn.diagram(
+  x = list(set5, set6),
+  category.names = c("Rolling Stones Top 100" , "Spotify Top Groups 2023"),
+  filename = 'venn_diagramm_groups.png',
+  output=TRUE,
+  col=c('#F8766D', '#00BFC4'),
+  fill = c(alpha('#F8766D',0.3), alpha('#00BFC4',0.3)),
+  fontfamily = "arial",
+  # Output festures
+  imagetype="png",
+  height = 2000 , 
+  width = 2000 , 
+  resolution = 300,
+  # Adjust the set names
+  cat.pos = c(-14, 13.5),
+  cat.cex = 1, 
+  cat.col = c('#F8766D', '#00BFC4'),
+  cat.fontface = "bold",
+  cat.fontfamily = "arial",
+  # Add a title
+  main = "Intersection of Top Groups: Rolling Stones Top 100 and Spotify 2023",
+  main.cex = 1.2,
+  main.fontfamily = "arial" 
+)
+```
+
+
+```{r display the venn diagrams, echo=FALSE,out.width="30%", out.height="30%",fig.cap="caption",fig.show='hold',fig.align='center'}
+
+# Display the venn diagrams
 img1 <- knitr::include_graphics("venn_diagramm.png")
 img2 <- knitr::include_graphics("venn_diagramm_groups.png")
 img3 <- knitr::include_graphics("venn_diagramm_tracks.png")
 
 knitr::include_graphics(c(img1, img2, img3))
 ```
+
+NOTE: In the first diagram, we used to have 80 Spotify Top Artists of 2023. Now we only have 62 -> nochmal prüfen
+
+
+
+**Findings**: Although the Rolling Stones top 100 have, on average, high values for Followers and Popularity on Spotify, they seem to not quite be on the same level as the most popular artists of 2023.
+
+**Questions**: Within the Rolling Stones top 100, can we sort out some patterns? Are some of these artists more popular nowadays than others, and if so, why?
+
 
 **Findings**: Only ten of the hundred Rolling Stones artists appear in the Spotify top artists/groups of 2023. 
 
@@ -1157,6 +1505,94 @@ knitr::include_graphics(c(img1, img2, img3))
 IDEA 1: Album/Song releases
 Potentially, the artists that keep releasing new songs/albums still endure compared to artists who do not release new music or are potentially even split up/passed away
 
+
+#### Latest Album Release Date
+
+Potentially, the artists that keep releasng new songs/albums remain more relevant compared to the artists who have not released new songs in a while.
+
+```{r plot 3 (album release dates), warning=FALSE}
+
+# Plot 3: Latest album release dates
+
+fifth_query_top100 <- "
+  SELECT Artist_Name, Spotify_Artist_ID, Followers, Popularity, FORMAT(Latest_Album_Release, 'yyyy-MM-dd') as Latest_Album_Release
+  FROM top_hundred_artists_df;
+"
+
+# Execute the query
+fifth_result_top100 <- dbGetQuery(db, fifth_query_top100)
+
+fifth_result_top100$Top_Group_23 <- as.integer(fifth_result_top100$Spotify_Artist_ID %in% fourth_result_top23$Spotify_Artist_ID)
+fifth_result_top100$Top_Artist_23 <- as.integer(fifth_result_top100$Spotify_Artist_ID %in% first_result_top23$Spotify_Artist_ID)
+
+fifth_result_top100 <- fifth_result_top100 %>%
+  mutate(Top_23 = Top_Group_23 + Top_Artist_23) %>%
+  select(-Top_Group_23, -Top_Artist_23) %>%
+  mutate(Latest_Album_Release = as.Date(Latest_Album_Release, format = "%Y-%m-%d"))
+
+
+manual_colors <- c("0" = "#F8766D", "1" = "#00BFC4")
+manual_labels <- c("0" = "Only Rolling Stones Top 100", "1" = "Also Spotify Top Artist/Group 2023")
+
+# Plot A: Popularity vs Latest album release date 
+fifth_plot_popularity <- ggplot(fifth_result_top100, 
+                     aes(x = Latest_Album_Release, y = Popularity, color = factor(Top_23))) +
+  geom_point(size = 1) +
+  # Add titles
+  labs(title = "Latest Album Release Date vs. Popularity",
+       x = "Latest Album Release Date",
+       y = "Spotify Popularity",
+       color = "Ranking Appearance") +
+  theme_minimal() +
+  # Adjust the font size for the title and the axes
+  theme(
+    axis.text = element_text(size = 8),     
+    axis.title = element_text(size = 8),    
+    plot.title = element_text(size = 12)
+  ) +
+  # Manually set colors for Artist_Type
+  scale_color_manual(values = manual_colors, labels = manual_labels)
+
+# Plot B: Followers vs Latest album release date 
+fifth_plot_followers <- ggplot(fifth_result_top100, 
+                     aes(x = Latest_Album_Release, y = Followers, color = factor(Top_23))) +
+  geom_point(size = 1) +
+  # Add titles
+  labs(title = "Latest Album Release Date vs. Followers",
+       x = "Latest Album Release Date",
+       y = "Spotify Followers",
+       color = "Ranking Appearance") +
+  theme_minimal() +
+  # Adjust the font size for the title and the axes
+  theme(
+    axis.text = element_text(size = 8),     
+    axis.title = element_text(size = 8),    
+    plot.title = element_text(size = 12)
+  ) +
+  # Manually set colors for Artist_Type
+  scale_color_manual(values = manual_colors, labels = manual_labels) +
+  scale_y_continuous(
+    labels = scales::comma_format(scale = 1)
+    #trans = 'log10'
+  ) 
+
+# Arrange the two plots vertically
+fifth_plot <- plot_grid(fifth_plot_popularity, fifth_plot_followers, ncol = 1)
+
+# Display the combined plot
+fifth_plot
+```
+
+
+
+### RESULTS
+Seemingly, there might be three factors that induce endurement
+1. new releases which might push
+2. popularity
+3. followers
+4. endurement 
+
+-> Henneh-Ei problem: from this simple analysis, we cannot conclude which of these factors induces the other, we would need a more thorough analysis using statistical tools (e.g., regression) and tests
 
 
 
