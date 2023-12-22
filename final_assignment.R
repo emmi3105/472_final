@@ -1015,7 +1015,7 @@ check_table(db, "event_data_df")
 
 
 ################################################################################
-# Table 5: Platinum certifications from RIAA
+# Table 7: Platinum certifications from RIAA
 
 # RIAA does not allow webscraping: https://www.riaa.com/privacy-policy-and-terms-of-use/ 
 # Therefore, I used wikipedia as a source to scrape information on album awards
@@ -1083,14 +1083,113 @@ check_table(db, "certified_singles_df")
 
 
 ################################################################################
-# Table 6: Grammys
+# Table 8: Last FM API
 
-# As of 21. December 2023, the Grammy website permits webscraping: https://www.recordingacademy.com/legal
+# Set up the API Key and endpoint
+readRenviron("../../Documents/R_Environs/lastfm_api.env")
+lastfm_apikey <- Sys.getenv("KEY")
+lastfm_endpoint <- "http://ws.audioscrobbler.com/2.0/"
 
+# Function that gets the chart data
+get_charts <- function(a_method){
+  # Set parameters for the request
+  params <- list(
+    method = a_method,
+    api_key = lastfm_apikey,
+    format = "json"
+  )
 
+  # Make the GET request
+  response <- GET(lastfm_endpoint, query = params)
+  content <- content(response, "parsed") 
 
+  return(content)
+}
 
+# Define methods
+method_artists = "chart.getTopArtists"
+method_tracks = "chart.getTopTracks"
 
+# Create empty dataframes
+charts_artists_data <- data.frame(
+  Artist_Name = character(0),
+  Playcount = numeric(0),
+  Listeners = numeric(0),
+  stringsAsFactors = FALSE
+)
+
+charts_tracks_data <- data.frame(
+  Artist_Name = character(0),
+  Playcount = numeric(0),
+  Listeners = numeric(0),
+  stringsAsFactors = FALSE
+)
+
+get_charts_info_artists <- function(a_method, dt_frame) {
+  
+  # Get the playlist data given the playlist id
+  dt <- get_charts(a_method)
+  
+  # Loop to append values
+  for (i in seq(length(dt$artists$artist))) {
+    # Append the values to the dataframe
+    dt_frame <- rbind(dt_frame, data.frame(Artist_Name = dt$artists$artist[[i]]$name,
+                                           Playcount = dt$artists$artist[[i]]$playcount,
+                                           Listeners = dt$artists$artist[[i]]$listeners
+    ))
+  }
+  
+  # Return the resulting dataframe
+  return(dt_frame)
+}
+
+get_charts_info_tracks <- function(a_method, dt_frame) {
+  
+  # Get the playlist data given the playlist id
+  dt <- get_charts(a_method)
+  
+  # Loop to append values
+  for (i in seq(length(dt$tracks$track))) {
+    # Append the values to the dataframe
+    dt_frame <- rbind(dt_frame, data.frame(Artist_Name = dt$tracks$track[[i]]$artist$name,
+                                           Playcount = dt$tracks$track[[i]]$playcount,
+                                           Listeners = dt$tracks$track[[i]]$listeners
+    ))
+  }
+  
+  # Return the resulting dataframe
+  return(dt_frame)
+}
+
+charts_artists_data <- get_charts_info_artists(method_artists, charts_artists_data)
+charts_tracks_data <- get_charts_info_tracks(method_tracks, charts_tracks_data)
+
+# Format the data
+charts_artists_data <- charts_artists_data %>%
+  mutate(Spotify_Artist_ID = ifelse(Artist_Name %in% top_hundred_artists$Artist_Name, 
+                                    top_hundred_artists$Spotify_Artist_ID[match(Artist_Name, top_hundred_artists$Artist_Name)], 
+                                    NA),
+         Top_Hundred = ifelse(!is.na(Spotify_Artist_ID), 1, 0),
+         Playcount = as.character(Playcount),
+         Listeners = as.character(Listeners)
+         ) 
+
+charts_tracks_data <- charts_tracks_data %>%
+  mutate(Spotify_Artist_ID = ifelse(Artist_Name %in% top_hundred_artists$Artist_Name, 
+                                    top_hundred_artists$Spotify_Artist_ID[match(Artist_Name, top_hundred_artists$Artist_Name)], 
+                                    NA),
+         Top_Hundred = ifelse(!is.na(Spotify_Artist_ID), 1, 0),
+         Playcount = as.character(Playcount),
+         Listeners = as.character(Listeners)
+  ) 
+
+# Write charts_artists_data and charts_tracks_data to the relational database
+dbWriteTable(db, "charts_artists_df", charts_artists_data, overwrite = TRUE)
+dbWriteTable(db, "charts_tracks_df", charts_tracks_data, overwrite = TRUE)
+
+# Call check_table on "charts_artists_df" and "charts_tracks_df"
+check_table(db, "charts_artists_df")
+check_table(db, "charts_tracks_df")
 
 
 ################################################################################
@@ -1098,7 +1197,11 @@ check_table(db, "certified_singles_df")
 
 dbGetQuery(db, "SELECT * FROM certified_albums_df LIMIT 5")
 dbGetQuery(db, "SELECT * FROM certified_singles_df LIMIT 5")
+dbGetQuery(db, "SELECT * FROM charts_artists_df LIMIT 5")
+dbGetQuery(db, "SELECT * FROM charts_tracks_df LIMIT 5")
 dbGetQuery(db, "SELECT * FROM event_data_df LIMIT 5")
+dbGetQuery(db, "SELECT * FROM top_artists_2023_USA_df LIMIT 5")
+dbGetQuery(db, "SELECT * FROM top_groups_2023_df LIMIT 5")
 dbGetQuery(db, "SELECT * FROM top_hundred_artists_df LIMIT 5")
 dbGetQuery(db, "SELECT * FROM top_tracks_2023_USA_df LIMIT 5")
 dbGetQuery(db, "SELECT * FROM top_tracks_df LIMIT 5")
@@ -1687,64 +1790,6 @@ venn_riaa_singles <- venn.diagram(
   main.fontfamily = "arial" 
 )
 
-
-
-
-
-
-
-
-
-
-# Read the PNG file
-img_riaa_albums <- readPNG("venn_diagramm_riaa_albums.png")
-
-
-
-# Create sets for the Venn diagram
-venn_input <- list(
-  "Rolling Stones Top 100" = sixth_result$Spotify_Artist_ID,
-  "Top 100 most RIAA certified albums" = first_result_top100$Spotify_Artist_ID
-)
-
-# Plot the Venn diagram
-venn.plot <- venn.plot(
-  venn_input,
-  category.names = c("Rolling Stones Top 100", "Top 100 most RIAA certified albums"),
-  filename = 'venn_diagramm_riaa_albums.png',
-  output = TRUE,
-  col = c('#F8766D', '#F564E3'),
-  fill = c(alpha('#F8766D', 0.3), alpha('#F564E3', 0.3)),
-  fontfamily = "arial",
-  # Output features
-  imagetype = "png",
-  height = 4000,
-  width = 4000,
-  resolution = 300,
-  # Adjust the set names
-  cat.pos = c(-14, 13.5),
-  cat.cex = 1,
-  cat.col = c('#F8766D', '#F564E3'),
-  cat.fontface = "bold",
-  cat.fontfamily = "arial",
-  # Add a title
-  main = "Intersection of Rolling Stones Top 100 and Top 100 most RIAA certified albums",
-  main.cex = 1.2,
-  main.fontfamily = "arial"
-)
-
-# Display the Venn diagram
-grid.draw(venn.plot)
-
-
-
-
-
-
-
-
-
-
 # 3B: Top 100 Rank vs. Album/Singles rank
 
 sixth_query_top100 <- "
@@ -1806,6 +1851,216 @@ sixth_plot_plotly
 
 
 
+################################################################################
+# Visualisations: Last Fm Api data
+
+# A. Intersections: Last FM charts vs. RS-T100
+seventh_query_artists <- "
+  SELECT Spotify_Artist_ID, Playcount, Listeners, Top_Hundred
+  FROM charts_artists_df 
+  ;
+"
+
+seventh_query_tracks <- "
+  SELECT Spotify_Artist_ID, Playcount, Listeners, Top_Hundred
+  FROM charts_tracks_df 
+  ;
+"
+
+# Execute the query
+seventh_result_artists <- dbGetQuery(db, seventh_query_artists)
+seventh_result_tracks <- dbGetQuery(db, seventh_query_tracks)
+
+
+# Add indicators
+seventh_result_artists <- seventh_result_artists %>%
+  mutate("Chart_Type" = "Artists",
+         Listeners = as.numeric(Listeners),
+         Playcount = as.numeric(Playcount))
+
+seventh_result_tracks <- seventh_result_tracks %>%
+  mutate("Chart_Type" = "Tracks",
+         Listeners = as.numeric(Listeners),
+         Playcount = as.numeric(Playcount))
+
+seventh_result <- rbind(seventh_result_artists, seventh_result_tracks)
+
+seventh_result$Spotify_Artist_ID <- ifelse(is.na(seventh_result$Spotify_Artist_ID), 
+                                         paste0("index", seq_along(seventh_result$Spotify_Artist_ID)), 
+                                         seventh_result$Spotify_Artist_ID)
+
+
+# Create sets for the venn diagrams
+set10 <- seventh_result %>% filter(Chart_Type=="Artists") %>% select(Spotify_Artist_ID) %>% unlist()
+set11 <- seventh_result %>% filter(Chart_Type=="Tracks") %>% select(Spotify_Artist_ID) %>% unlist() 
+
+# Make the plots (eval = FALSE in RMarkdown)
+venn_riaa_albums <- venn.diagram(
+  x = list(set9, set10),
+  category.names = c("Rolling Stones Top 100" , "Charts (Artists)"),
+  filename = 'venn_diagramm_charts_artists.png',
+  output=TRUE,
+  col=c('#F8766D', '#619CFF'),
+  fill = c(alpha('#F8766D',0.3), alpha('#619CFF',0.3)),
+  fontfamily = "arial",
+  # Output festures
+  imagetype="png",
+  height = 2000 , 
+  width = 2000 , 
+  resolution = 300,
+  # Adjust the set names
+  cat.pos = c(-14, 13.5),
+  cat.cex = 1, 
+  cat.col = c('#F8766D', '#619CFF'),
+  cat.fontface = "bold",
+  cat.fontfamily = "arial",
+  # Add a title
+  main = "RS-T100 and LastFM Charts (Artists)",
+  main.cex = 1.2,
+  main.fontfamily = "arial" 
+)
+
+venn_riaa_singles <- venn.diagram(
+  x = list(set9, set11),
+  category.names = c("Rolling Stones Top 100" , "Charts (Tracks)"),
+  filename = 'venn_diagramm_charts_tracks.png',
+  output=TRUE,
+  col=c('#F8766D', '#EBAC23'),
+  fill = c(alpha('#F8766D',0.3), alpha('#EBAC23',0.3)),
+  fontfamily = "arial",
+  # Output festures
+  imagetype="png",
+  height = 2000 , 
+  width = 2000 , 
+  resolution = 300,
+  # Adjust the set names
+  cat.pos = c(-14, 13.5),
+  cat.cex = 1, 
+  cat.col = c('#F8766D', '#EBAC23'),
+  cat.fontface = "bold",
+  cat.fontfamily = "arial",
+  # Add a title
+  main = "RS-T100 and LastFM Charts (Tracks)",
+  main.cex = 1.2,
+  main.fontfamily = "arial" 
+)
+
+
+# B. Playcount vs. Listeners: Last FM charts vs. RS-T100
+
+# Artists
+# Calculate means
+mean_playcount_top100_artists <- mean(seventh_result_artists$Playcount[seventh_result_artists$Top_Hundred == 1])
+mean_playcount_charts_artists <- mean(seventh_result_artists$Playcount[seventh_result_artists$Top_Hundred == 0])
+
+mean_listeners_top100_artists <- mean(seventh_result_artists$Listeners[seventh_result_artists$Top_Hundred == 1])
+mean_listeners_charts_artists <- mean(seventh_result_artists$Listeners[seventh_result_artists$Top_Hundred == 0])
+
+# Set manual colours
+manual_colors_artists <- c("0" = "#619CFF", "1" = "#F8766D")
+manual_labels <- c("0" = "Only LastFM Charts", "1" = "Also RS-T100")
+
+# Plot: Playcount vs. Listeners
+seventh_plot_artists <- ggplot(seventh_result_artists,
+                               aes(x = Playcount, y = Listeners, color = factor(Top_Hundred))) +
+  geom_point(size = 1) +
+  # Add means
+  geom_point(aes(x = mean_playcount_top100_artists, y = mean_listeners_top100_artists), color = "#F8766D", size = 3, fill = "#F8766D", shape = 23) +
+  geom_point(aes(x = mean_playcount_charts_artists, y = mean_listeners_charts_artists), color = "#619CFF", size = 3, fill = "#619CFF", shape = 23) +
+  geom_vline(xintercept = mean_playcount_top100_artists, linetype = "dotted", color = "#F8766D") +
+  geom_hline(yintercept = mean_listeners_top100_artists, linetype = "dotted", color = "#F8766D") +
+  geom_vline(xintercept = mean_playcount_charts_artists, linetype = "dotted", color = "#619CFF") +
+  geom_hline(yintercept = mean_listeners_charts_artists, linetype = "dotted", color = "#619CFF") +
+  # Add titles
+  labs(title = "Artists Playcount vs. Listeners: Last FM charts vs. RS-T100",
+       x = "Last FM Playcount",
+       y = "Last FM Listeners",
+       color = "RS-T100") +
+  theme_minimal() +
+  # Adjust the font size for the title and the axes
+  theme(
+    axis.text = element_text(size = 8),     
+    axis.title = element_text(size = 8),    
+    plot.title = element_text(size = 12)
+  ) +
+  # Use a logarithmic scale for the x-axis
+  scale_x_continuous(
+    labels = scales::comma_format(scale = 1),
+    trans = 'log10'
+  ) +
+  scale_y_continuous(
+    labels = scales::comma_format(scale = 1),
+    trans = 'log10'
+  ) +
+  # Manually set colors for Artist_Type
+  scale_color_manual(values = manual_colors_artists, labels = manual_labels)
+
+seventh_plot_artists
+
+# Tracks
+# Calculate means
+mean_playcount_top100_tracks <- mean(seventh_result_tracks$Playcount[seventh_result_tracks$Top_Hundred == 1])
+mean_playcount_charts_tracks <- mean(seventh_result_tracks$Playcount[seventh_result_tracks$Top_Hundred == 0])
+
+mean_listeners_top100_tracks <- mean(seventh_result_tracks$Listeners[seventh_result_tracks$Top_Hundred == 1])
+mean_listeners_charts_tracks <- mean(seventh_result_tracks$Listeners[seventh_result_tracks$Top_Hundred == 0])
+
+# Set manual colours
+manual_colors_tracks <- c("0" = "#EBAC23", "1" = "#F8766D")
+
+# Plot: Playcount vs. Listeners
+seventh_plot_tracks <- ggplot(seventh_result_tracks,
+                               aes(x = Playcount, y = Listeners, color = factor(Top_Hundred))) +
+  geom_point(size = 1) +
+  # Add means
+  geom_point(aes(x = mean_playcount_top100_tracks, y = mean_listeners_top100_tracks), color = "#F8766D", size = 3, fill = "#F8766D", shape = 23) +
+  geom_point(aes(x = mean_playcount_charts_tracks, y = mean_listeners_charts_tracks), color = "#EBAC23", size = 3, fill = "#EBAC23", shape = 23) +
+  geom_vline(xintercept = mean_playcount_top100_tracks, linetype = "dotted", color = "#F8766D") +
+  geom_hline(yintercept = mean_listeners_top100_tracks, linetype = "dotted", color = "#F8766D") +
+  geom_vline(xintercept = mean_playcount_charts_tracks, linetype = "dotted", color = "#EBAC23") +
+  geom_hline(yintercept = mean_listeners_charts_tracks, linetype = "dotted", color = "#EBAC23") +
+  # Add titles
+  labs(title = "Tracks Playcount vs. Listeners: Last FM charts vs. RS-T100",
+       x = "Last FM Playcount",
+       y = "Last FM Listeners",
+       color = "RS-T100") +
+  theme_minimal() +
+  # Adjust the font size for the title and the axes
+  theme(
+    axis.text = element_text(size = 8),     
+    axis.title = element_text(size = 8),    
+    plot.title = element_text(size = 12)
+  ) +
+  # Use a logarithmic scale for the x-axis
+  scale_x_continuous(
+    labels = scales::comma_format(scale = 1),
+    trans = 'log10'
+  ) +
+  scale_y_continuous(
+    labels = scales::comma_format(scale = 1),
+    trans = 'log10'
+  ) +
+  # Manually set colors for Artist_Type
+  scale_color_manual(values = manual_colors_tracks, labels = manual_labels)
+
+seventh_plot_tracks
+
+# Arrange the two plots vertically
+seventh_plot <- plot_grid(seventh_plot_artists, seventh_plot_tracks, ncol = 1)
+
+# Display the combined plot
+seventh_plot
+
+
+
+
+
+
+### Add a table with the artist names to show that the artists that remain relevant on Spotify and in the FM Charts are the same ones.
+
+
+### Potentially: get an endurement score for the RS-T100 artists
+# Score: 1/4(Spotify Followers + Spotify Popularity + Last FM Listeners + Last FM Playcount)
 
 
 
