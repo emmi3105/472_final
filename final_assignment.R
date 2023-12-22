@@ -1161,6 +1161,8 @@ get_charts_info_tracks <- function(a_method, dt_frame) {
   return(dt_frame)
 }
 
+test_dt <- get_charts(method_tracks)
+
 charts_artists_data <- get_charts_info_artists(method_artists, charts_artists_data)
 charts_tracks_data <- get_charts_info_tracks(method_tracks, charts_tracks_data)
 
@@ -1170,8 +1172,8 @@ charts_artists_data <- charts_artists_data %>%
                                     top_hundred_artists$Spotify_Artist_ID[match(Artist_Name, top_hundred_artists$Artist_Name)], 
                                     NA),
          Top_Hundred = ifelse(!is.na(Spotify_Artist_ID), 1, 0),
-         Playcount = as.character(Playcount),
-         Listeners = as.character(Listeners)
+         Playcount = as.numeric(Playcount),
+         Listeners = as.numeric(Listeners)
          ) 
 
 charts_tracks_data <- charts_tracks_data %>%
@@ -1179,8 +1181,8 @@ charts_tracks_data <- charts_tracks_data %>%
                                     top_hundred_artists$Spotify_Artist_ID[match(Artist_Name, top_hundred_artists$Artist_Name)], 
                                     NA),
          Top_Hundred = ifelse(!is.na(Spotify_Artist_ID), 1, 0),
-         Playcount = as.character(Playcount),
-         Listeners = as.character(Listeners)
+         Playcount = as.numeric(Playcount),
+         Listeners = as.numeric(Listeners)
   ) 
 
 # Write charts_artists_data and charts_tracks_data to the relational database
@@ -1192,9 +1194,152 @@ check_table(db, "charts_artists_df")
 check_table(db, "charts_tracks_df")
 
 
+# Also get the Listeners and Playcount for the entire RS-T100
+
+# Create an empty dataframe
+artists_fm_data <- data.frame(
+  Artist_Name = character(0),
+  Playcount = numeric(0),
+  Listeners = numeric(0),
+  On_Tour = numeric(0),
+  stringsAsFactors = FALSE
+)
+
+get_artists_fm <- function(artist_name){
+  # Set parameters for the request
+  params <- list(
+    method = "artist.getInfo",
+    artist = artist_name,
+    api_key = lastfm_apikey,
+    format = "json"
+  )
+  
+  # Make the GET request
+  response <- GET(lastfm_endpoint, query = params)
+  content <- content(response, "parsed") 
+  
+  return(content)
+}
+
+get_artist_info_fm <- function(artist_name) {
+  
+  # Get the playlist data given the playlist id
+  dt <- get_artists_fm(artist_name)
+  
+  # Append the values of interest
+  if (length(dt$artist) == 0) {
+    # If no data is available, create a data frame with NAs
+    artists_fm_data <- rbind(artists_fm_data, data.frame(Artist_Name = artist_name,
+                                                         Playcount = NA,
+                                                         Listeners = NA,
+                                                         On_Tour = NA))
+  } else {
+    # If data is available, append the values of interest
+    artists_fm_data <- rbind(artists_fm_data, data.frame(Artist_Name = artist_name,
+                                                         Playcount = dt$artist$stats$playcount,
+                                                         Listeners = dt$artist$stats$listeners,
+                                                         On_Tour = dt$artist$ontour))
+  }
+  
+  # Return the resulting dataframe
+  return(artists_fm_data)
+}
+
+result_list <- lapply(top_hundred_artists$Artist_Name, get_artist_info_fm)
+artists_fm_data <- do.call(rbind, result_list)
+
+# Format the data
+artists_fm_data <- artists_fm_data %>%
+  mutate(Spotify_Artist_ID = ifelse(Artist_Name %in% top_hundred_artists$Artist_Name,
+                                    top_hundred_artists$Spotify_Artist_ID[match(Artist_Name, top_hundred_artists$Artist_Name)], 
+                                    NA),
+         Playcount = as.numeric(Playcount),
+         Listeners = as.numeric(Listeners)
+         ) 
+
+# Write artists_fm_data to the relational database
+dbWriteTable(db, "artists_fm_df", artists_fm_data, overwrite = TRUE)
+
+# Call check_table on "artists_fm_df"
+check_table(db, "artists_fm_df")
+
+
+
+# Also get the top tracks for each artist
+
+# Create an empty dataframe
+top_tracks_fm_data <- data.frame(
+  Artist_Name = character(0),
+  Track_Name = character(0),
+  Track_Playcount = numeric(0),
+  Track_Listeners = numeric(0),
+  stringsAsFactors = FALSE
+)
+
+get_top_tracks_fm <- function(artist_name){
+  # Set parameters for the request
+  params <- list(
+    method = "artist.getTopTracks",
+    artist = artist_name,
+    api_key = lastfm_apikey,
+    format = "json"
+  )
+  
+  # Make the GET request
+  response <- GET(lastfm_endpoint, query = params)
+  content <- content(response, "parsed") 
+  
+  return(content)
+}
+
+get_tracks_info_fm <- function(artist_name) {
+  
+  # Get the playlist data given the playlist id
+  dt <- get_top_tracks_fm(artist_name)
+  
+  # Append the values of interest
+  if (length(dt$toptracks$track) == 0) {
+    # If no data is available, create a data frame with NAs
+    top_tracks_fm_data <- rbind(top_tracks_fm_data, data.frame(Artist_Name = artist_name,
+                                                               Track_Name = NA,
+                                                               Track_Playcount = NA,
+                                                               Track_Listeners = NA
+                                                               ))
+  } else {
+    # If data is available, append the values of interest
+    top_tracks_fm_data <- rbind(top_tracks_fm_data, data.frame(Artist_Name = artist_name,
+                                                               Track_Name = dt$toptracks$track[[1]]$name,
+                                                               Track_Playcount = dt$toptracks$track[[1]]$playcount,
+                                                               Track_Listeners = dt$toptracks$track[[1]]$listeners
+                                                               ))
+  }
+  
+  # Return the resulting dataframe
+  return(top_tracks_fm_data)
+}
+
+result_list <- lapply(top_hundred_artists$Artist_Name, get_tracks_info_fm)
+top_tracks_fm_data <- do.call(rbind, result_list)
+
+# Format the data
+top_tracks_fm_data <- top_tracks_fm_data %>%
+  mutate(Spotify_Artist_ID = ifelse(Artist_Name %in% top_hundred_artists$Artist_Name,
+                                    top_hundred_artists$Spotify_Artist_ID[match(Artist_Name, top_hundred_artists$Artist_Name)], 
+                                    NA),
+         Track_Playcount = as.numeric(Track_Playcount),
+         Track_Listeners = as.numeric(Track_Listeners)
+  ) 
+
+# Write top_tracks_fm_data to the relational database
+dbWriteTable(db, "top_tracks_fm_df", top_tracks_fm_data, overwrite = TRUE)
+
+# Call check_table on "top_tracks_fm_df"
+check_table(db, "top_tracks_fm_df")
+
 ################################################################################
 # Check out the data
 
+dbGetQuery(db, "SELECT * FROM artists_fm_df LIMIT 5")
 dbGetQuery(db, "SELECT * FROM certified_albums_df LIMIT 5")
 dbGetQuery(db, "SELECT * FROM certified_singles_df LIMIT 5")
 dbGetQuery(db, "SELECT * FROM charts_artists_df LIMIT 5")
@@ -1205,6 +1350,8 @@ dbGetQuery(db, "SELECT * FROM top_groups_2023_df LIMIT 5")
 dbGetQuery(db, "SELECT * FROM top_hundred_artists_df LIMIT 5")
 dbGetQuery(db, "SELECT * FROM top_tracks_2023_USA_df LIMIT 5")
 dbGetQuery(db, "SELECT * FROM top_tracks_df LIMIT 5")
+
+
 
 
 check_table(db, "top_tracks_2023_USA_df")
@@ -1948,34 +2095,73 @@ venn_riaa_singles <- venn.diagram(
 
 # B. Playcount vs. Listeners: Last FM charts vs. RS-T100
 
-# Artists
-# Calculate means
-mean_playcount_top100_artists <- mean(seventh_result_artists$Playcount[seventh_result_artists$Top_Hundred == 1])
-mean_playcount_charts_artists <- mean(seventh_result_artists$Playcount[seventh_result_artists$Top_Hundred == 0])
+# Also get the playcount and listeners of exclusively RS-T100
+eight_query_top100 <- "
+  SELECT Spotify_Artist_ID, Playcount, Listeners
+  FROM artists_fm_df 
+  ;
+"
 
-mean_listeners_top100_artists <- mean(seventh_result_artists$Listeners[seventh_result_artists$Top_Hundred == 1])
-mean_listeners_charts_artists <- mean(seventh_result_artists$Listeners[seventh_result_artists$Top_Hundred == 0])
+eight_query_charts <- "
+  SELECT Spotify_Artist_ID, Playcount, Listeners
+  FROM charts_artists_df 
+  ;
+"
+
+# Execute the query
+eight_result_top100 <- dbGetQuery(db, eight_query_top100)
+eight_result_charts <- dbGetQuery(db, eight_query_charts)
+
+# Add indicators
+eight_result_top100$Presence <- ifelse(eight_result_top100$Spotify_Artist_ID %in% eight_result_charts$Spotify_Artist_ID, 3, 1)
+eight_result_charts$Presence <- ifelse(eight_result_charts$Spotify_Artist_ID %in% eight_result_top100$Spotify_Artist_ID, 3, 2)
+
+# Get rid of the observations that are doubled 
+eight_result_top100 <- eight_result_top100 %>%
+  filter(Presence != 3)
+
+eight_result <- rbind(eight_result_top100, eight_result_charts)
+
+eight_result <- eight_result %>%
+  mutate(Listeners = as.numeric(Listeners),
+         Playcount = as.numeric(Playcount)) %>%
+  filter(!is.na(Listeners) & !is.na(Playcount))
+
+
+
+# Calculate means
+mean_playcount_top100_artists <- mean(eight_result$Playcount[eight_result$Presence == 1])
+mean_playcount_charts_artists <- mean(eight_result$Playcount[eight_result$Presence == 2])
+mean_playcount_both_artists <- mean(eight_result$Playcount[eight_result$Presence == 3])
+
+
+mean_listeners_top100_artists <- mean(eight_result$Listeners[eight_result$Presence == 1])
+mean_listeners_charts_artists <- mean(eight_result$Listeners[eight_result$Presence == 2])
+mean_listeners_both_artists <- mean(eight_result$Listeners[eight_result$Presence == 3])
 
 # Set manual colours
-manual_colors_artists <- c("0" = "#619CFF", "1" = "#F8766D")
-manual_labels <- c("0" = "Only LastFM Charts", "1" = "Also RS-T100")
+manual_colors_artists <- c("2" = "#619CFF", "1" = "#F8766D", "3" = "#F564E3")
+manual_labels <- c("2" = "Only LastFM Charts", "1" = "Only RS-T100", "3" = "Both")
 
 # Plot: Playcount vs. Listeners
-seventh_plot_artists <- ggplot(seventh_result_artists,
-                               aes(x = Playcount, y = Listeners, color = factor(Top_Hundred))) +
+seventh_plot_artists <- ggplot(eight_result,
+                               aes(x = Playcount, y = Listeners, color = factor(Presence))) +
   geom_point(size = 1) +
   # Add means
   geom_point(aes(x = mean_playcount_top100_artists, y = mean_listeners_top100_artists), color = "#F8766D", size = 3, fill = "#F8766D", shape = 23) +
   geom_point(aes(x = mean_playcount_charts_artists, y = mean_listeners_charts_artists), color = "#619CFF", size = 3, fill = "#619CFF", shape = 23) +
+  geom_point(aes(x = mean_playcount_both_artists, y = mean_listeners_both_artists), color = "#F564E3", size = 3, fill = "#F564E3", shape = 23) +
   geom_vline(xintercept = mean_playcount_top100_artists, linetype = "dotted", color = "#F8766D") +
   geom_hline(yintercept = mean_listeners_top100_artists, linetype = "dotted", color = "#F8766D") +
   geom_vline(xintercept = mean_playcount_charts_artists, linetype = "dotted", color = "#619CFF") +
   geom_hline(yintercept = mean_listeners_charts_artists, linetype = "dotted", color = "#619CFF") +
+  geom_vline(xintercept = mean_playcount_both_artists, linetype = "dotted", color = "#F564E3") +
+  geom_hline(yintercept = mean_listeners_both_artists, linetype = "dotted", color = "#F564E3") +
   # Add titles
   labs(title = "Artists Playcount vs. Listeners: Last FM charts vs. RS-T100",
        x = "Last FM Playcount",
        y = "Last FM Listeners",
-       color = "RS-T100") +
+       color = "Appearance") +
   theme_minimal() +
   # Adjust the font size for the title and the axes
   theme(
@@ -1983,14 +2169,14 @@ seventh_plot_artists <- ggplot(seventh_result_artists,
     axis.title = element_text(size = 8),    
     plot.title = element_text(size = 12)
   ) +
-  # Use a logarithmic scale for the x-axis
+  # Format the x-axis and the y-axis labels
   scale_x_continuous(
-    labels = scales::comma_format(scale = 1),
-    trans = 'log10'
+    labels = scales::comma_format(scale = 1)
+  #  trans = 'log10'
   ) +
   scale_y_continuous(
-    labels = scales::comma_format(scale = 1),
-    trans = 'log10'
+    labels = scales::comma_format(scale = 1)
+  #  trans = 'log10'
   ) +
   # Manually set colors for Artist_Type
   scale_color_manual(values = manual_colors_artists, labels = manual_labels)
@@ -1998,32 +2184,73 @@ seventh_plot_artists <- ggplot(seventh_result_artists,
 seventh_plot_artists
 
 # Tracks
-# Calculate means
-mean_playcount_top100_tracks <- mean(seventh_result_tracks$Playcount[seventh_result_tracks$Top_Hundred == 1])
-mean_playcount_charts_tracks <- mean(seventh_result_tracks$Playcount[seventh_result_tracks$Top_Hundred == 0])
 
-mean_listeners_top100_tracks <- mean(seventh_result_tracks$Listeners[seventh_result_tracks$Top_Hundred == 1])
-mean_listeners_charts_tracks <- mean(seventh_result_tracks$Listeners[seventh_result_tracks$Top_Hundred == 0])
+# Also get the playcount and listeners of exclusively RS-T100
+eight_query_top100_tracks <- "
+  SELECT Spotify_Artist_ID, Track_Playcount, Track_Listeners
+  FROM top_tracks_fm_df 
+  ;
+"
+
+eight_query_charts_tracks <- "
+  SELECT Spotify_Artist_ID, Playcount AS Track_Playcount, Listeners AS Track_Listeners
+  FROM charts_tracks_df 
+  ;
+"
+
+# Execute the query
+eight_result_top100_tracks <- dbGetQuery(db, eight_query_top100_tracks)
+eight_result_charts_tracks <- dbGetQuery(db, eight_query_charts_tracks)
+
+# Add indicators
+eight_result_top100_tracks$Presence <- ifelse(eight_result_top100_tracks$Spotify_Artist_ID %in% eight_result_charts_tracks$Spotify_Artist_ID, 3, 1)
+eight_result_charts_tracks$Presence <- ifelse(eight_result_charts_tracks$Spotify_Artist_ID %in% eight_result_top100_tracks$Spotify_Artist_ID, 3, 2)
+
+# Get rid of the observations that are doubled 
+eight_result_top100_tracks <- eight_result_top100_tracks %>%
+  filter(Presence != 3)
+
+eight_result_tracks <- rbind(eight_result_top100_tracks, eight_result_charts_tracks)
+
+eight_result_tracks <- eight_result_tracks %>%
+  mutate(Track_Listeners = as.numeric(Track_Listeners),
+         Track_Playcount = as.numeric(Track_Playcount)) %>%
+  filter(!is.na(Track_Listeners) & !is.na(Track_Playcount))
+
+# Calculate means
+mean_playcount_top100_tracks <- mean(eight_result_tracks$Track_Playcount[eight_result_tracks$Presence == 1])
+mean_playcount_charts_tracks <- mean(eight_result_tracks$Track_Playcount[eight_result_tracks$Presence == 2])
+mean_playcount_both_tracks <- mean(eight_result_tracks$Track_Playcount[eight_result_tracks$Presence == 3])
+
+
+mean_listeners_top100_tracks <- mean(eight_result_tracks$Track_Listeners[eight_result_tracks$Presence == 1])
+mean_listeners_charts_tracks <- mean(eight_result_tracks$Track_Listeners[eight_result_tracks$Presence == 2])
+mean_listeners_both_tracks <- mean(eight_result_tracks$Track_Listeners[eight_result_tracks$Presence == 3])
 
 # Set manual colours
-manual_colors_tracks <- c("0" = "#EBAC23", "1" = "#F8766D")
+manual_colors_tracks <- c("2" = "#EBAC23", "1" = "#F8766D", "3" = "#F564E3")
+manual_labels_tracks <- c("2" = "Only LastFM Charts", "1" = "Only RS-T100", "3" = "Both")
+
 
 # Plot: Playcount vs. Listeners
-seventh_plot_tracks <- ggplot(seventh_result_tracks,
-                               aes(x = Playcount, y = Listeners, color = factor(Top_Hundred))) +
+seventh_plot_tracks <- ggplot(eight_result_tracks,
+                               aes(x = Track_Playcount, y = Track_Listeners, color = factor(Presence))) +
   geom_point(size = 1) +
   # Add means
   geom_point(aes(x = mean_playcount_top100_tracks, y = mean_listeners_top100_tracks), color = "#F8766D", size = 3, fill = "#F8766D", shape = 23) +
   geom_point(aes(x = mean_playcount_charts_tracks, y = mean_listeners_charts_tracks), color = "#EBAC23", size = 3, fill = "#EBAC23", shape = 23) +
+  geom_point(aes(x = mean_playcount_both_tracks, y = mean_listeners_both_tracks), color = "#F564E3", size = 3, fill = "#F564E3", shape = 23) +
   geom_vline(xintercept = mean_playcount_top100_tracks, linetype = "dotted", color = "#F8766D") +
   geom_hline(yintercept = mean_listeners_top100_tracks, linetype = "dotted", color = "#F8766D") +
   geom_vline(xintercept = mean_playcount_charts_tracks, linetype = "dotted", color = "#EBAC23") +
   geom_hline(yintercept = mean_listeners_charts_tracks, linetype = "dotted", color = "#EBAC23") +
+  geom_vline(xintercept = mean_playcount_both_tracks, linetype = "dotted", color = "#F564E3") +
+  geom_hline(yintercept = mean_listeners_both_tracks, linetype = "dotted", color = "#F564E3") +
   # Add titles
   labs(title = "Tracks Playcount vs. Listeners: Last FM charts vs. RS-T100",
        x = "Last FM Playcount",
        y = "Last FM Listeners",
-       color = "RS-T100") +
+       color = "Appearance") +
   theme_minimal() +
   # Adjust the font size for the title and the axes
   theme(
@@ -2031,17 +2258,17 @@ seventh_plot_tracks <- ggplot(seventh_result_tracks,
     axis.title = element_text(size = 8),    
     plot.title = element_text(size = 12)
   ) +
-  # Use a logarithmic scale for the x-axis
+  # Format axes labels
   scale_x_continuous(
-    labels = scales::comma_format(scale = 1),
-    trans = 'log10'
+    labels = scales::comma_format(scale = 1)
+  #  trans = 'log10'
   ) +
   scale_y_continuous(
-    labels = scales::comma_format(scale = 1),
-    trans = 'log10'
+    labels = scales::comma_format(scale = 1)
+  #  trans = 'log10'
   ) +
   # Manually set colors for Artist_Type
-  scale_color_manual(values = manual_colors_tracks, labels = manual_labels)
+  scale_color_manual(values = manual_colors_tracks, labels = manual_labels_tracks)
 
 seventh_plot_tracks
 
@@ -2052,8 +2279,55 @@ seventh_plot <- plot_grid(seventh_plot_artists, seventh_plot_tracks, ncol = 1)
 seventh_plot
 
 
+# Is the playcount/listeners higher for artists that are on tour?
 
+ninth_query <- "
+  SELECT Spotify_Artist_ID, Playcount, Listeners, On_Tour
+  FROM artists_fm_df 
+  ;
+"
 
+# Execute the query
+ninth_result <- dbGetQuery(db, ninth_query)
+
+ninth_result <- ninth_result %>%
+  mutate(Listeners = as.numeric(Listeners),
+         Playcount = as.numeric(Playcount)) %>%
+  filter(!is.na(Listeners) & !is.na(Playcount))
+
+# Set manual colours
+manual_colors_tour <- c("0" = "#B79F00", "1" = "#FF4136")
+manual_labels_tour <- c("0" = "Not on Tour", "1" = "On Tour")
+
+# Plot: Playcount vs. Listeners
+eight_plot <- ggplot(ninth_result,
+                               aes(x = Playcount, y = Listeners, color = factor(On_Tour))) +
+  geom_point(size = 1) +
+  # Add titles
+  labs(title = "RS-T100 Artists Playcount vs. Listeners: On Tour",
+       x = "Last FM Playcount",
+       y = "Last FM Listeners",
+       color = "On Tour") +
+  theme_minimal() +
+  # Adjust the font size for the title and the axes
+  theme(
+    axis.text = element_text(size = 8),     
+    axis.title = element_text(size = 8),    
+    plot.title = element_text(size = 12)
+  ) +
+  # Use a logarithmic scale for the x-axis
+  scale_x_continuous(
+    labels = scales::comma_format(scale = 1),
+    trans = 'log10'
+  ) +
+  scale_y_continuous(
+    labels = scales::comma_format(scale = 1),
+    trans = 'log10'
+  ) +
+  # Manually set colors for Artist_Type
+  scale_color_manual(values = manual_colors_tour, labels = manual_labels_tour)
+
+eight_plot
 
 
 ### Add a table with the artist names to show that the artists that remain relevant on Spotify and in the FM Charts are the same ones.
@@ -2062,6 +2336,7 @@ seventh_plot
 ### Potentially: get an endurement score for the RS-T100 artists
 # Score: 1/4(Spotify Followers + Spotify Popularity + Last FM Listeners + Last FM Playcount)
 
+calculate_endurement <- function(){}
 
 
 # Standard colors

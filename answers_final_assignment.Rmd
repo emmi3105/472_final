@@ -92,6 +92,8 @@ Data:
 
 
 
+THESE: Die RS-T100 sind eher gefestigte Institutionen als artists, die gerade, im Jahr 2023, "viral" sind.
+
 ## 1. Introduction 
 
 ```{r create a relational database}
@@ -1742,6 +1744,14 @@ fifth_plot <- plot_grid(fifth_plot_popularity, fifth_plot_followers, ncol = 1)
 # Display the combined plot
 fifth_plot
 ```
+
+
+OR: How many albums have they released in the past 10 years
+
+#### On tour???
+
+Use the data from last fm api
+
 
 
 
