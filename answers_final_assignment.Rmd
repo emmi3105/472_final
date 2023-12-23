@@ -94,6 +94,12 @@ Data:
 
 THESE: Die RS-T100 sind eher gefestigte Institutionen als artists, die gerade, im Jahr 2023, "viral" sind.
 
+To DO:
+- Delete event_df from the database
+- Überarbeiten: data extraction for artists_fm_df (maybe just add popularity and followers to the top 100 df)
+- Überarbeiten: in general data extraction Last FM
+- Gleich weitermachen: Data Analysis: besser strukturieren, ordnen, schauen, welche grafiken es wirklich braucht
+
 ## 1. Introduction 
 
 ```{r create a relational database}
@@ -141,6 +147,8 @@ check_table <- function(db, a_table){
 
 
 ## 2. Data
+
+### 2A. Rolling Stones Data (Table 1)
 
 ```{r get rolling stones data, eval=FALSE}
 
@@ -279,6 +287,8 @@ driver$close()
 system("taskkill /im java.exe /f", intern=FALSE, ignore.stdout=FALSE)
 ```
 
+
+### 2B. Spotify API Data (Tables 1 - 5)
 
 ```{r get Spotify API data, eval=FALSE}
 
@@ -597,21 +607,6 @@ get_playlist <- function(playlist_id){
   return(playlist_data)
 }
 
-
-# Create an empty dataframe
-top_tracks_2023_USA <- data.frame(
-  Playlist_Name = character(0),
-  Playlist_ID = character(0),
-  Playlist_Description = character(0),
-  Track_Name = character(0),
-  Artist_Name = character(0),
-  Spotify_Track_ID = character(0),
-  Track_Duration = numeric(0),
-  Track_Popularity = numeric(0),
-  Album_Release_Date = character(0),
-  stringsAsFactors = FALSE
-)
-
 # Function that gets the playlist info given the playlist id
 get_playlist_info <- function(playlist_id, a_dataframe) {
   
@@ -637,33 +632,26 @@ get_playlist_info <- function(playlist_id, a_dataframe) {
   return(a_dataframe)
 }
 
+# Create an empty dataframe
+top_tracks_2023_USA <- data.frame(
+  Playlist_Name = character(0),
+  Playlist_ID = character(0),
+  Playlist_Description = character(0),
+  Track_Name = character(0),
+  Artist_Name = character(0),
+  Spotify_Track_ID = character(0),
+  Track_Duration = numeric(0),
+  Track_Popularity = numeric(0),
+  Album_Release_Date = character(0),
+  stringsAsFactors = FALSE
+)
+
 # Execute the function
 top_tracks_2023_USA_id <- "37i9dQZF1DXbJMiQ53rTyJ"
 top_tracks_2023_USA <- get_playlist_info(top_tracks_2023_USA_id, top_tracks_2023_USA)
 
 # Get the artist ID for each artist on the top tracks 2023 playlist
 top_tracks_2023_USA$Spotify_Artist_ID <- NA
-
-# Function to search for artist by name and get the artist ID
-get_artist_id <- function(artist_name) {
-  # Spotify API endpoint for searching artists by name
-  endpoint <- 'https://api.spotify.com/v1/search'
-  
-  # Set up the request parameters with a filter for artists
-  params <- list(q = artist_name, type = 'artist', limit = 1)
-  
-  # Set up the request headers with the access token
-  headers <- c('Authorization' = paste0('Bearer ', access_token))
-  
-  # Make the GET request
-  response <- GET(endpoint, query = params, add_headers(headers))
-  
-  search_result <- content(response, 'parsed')
-  
-  id <- search_result$artists$items[[1]]$id
-  
-  return(id)
-}
 
 # Add the artist IDs
 top_tracks_2023_USA$Spotify_Artist_ID <- lapply(top_tracks_2023_USA$Artist_Name, get_artist_id)
@@ -700,110 +688,31 @@ top_artists_2023_USA <- data.frame(
   stringsAsFactors = FALSE
 )
 
-# A playlist dataframe
+# Get the Playlist Info
 top_artists_USA_id <- "37i9dQZF1DX4dwwIoKH0j7"
 top_artists_2023_USA <- get_playlist_info(top_artists_USA_id, top_artists_2023_USA)
 
-# Get the information on the tracks of the playlist
-get_tracks_23 <- function(track_id){
-  
-  # Spotify API endpoint for getting playlist details
-  endpoint <- paste0('https://api.spotify.com/v1/tracks/', track_id)
-  
-  # Set up the request headers with the access token
-  headers <- c('Authorization' = paste0('Bearer ', access_token))
-  
-  # Make the GET request
-  tracks_23_response <- GET(endpoint, add_headers(headers))
-  tracks_23_data <- content(tracks_23_response, 'parsed')
-  
-  return(tracks_23_data)
-}
-
+# Create a dataframe for the artists on the Top Artists 2023 USA Playlist
 top_artists_2023 <- data.frame(
-  Artist_Name = character(0),
+  Artist_Name = top_artists_2023_USA$Artist_Name,
   stringsAsFactors = FALSE
 )
-
-# function that gets the playlist info given the playlist id
-get_artists_23 <- function(track_id) {
-  
-  # Get the playlist data given the playlist id
-  dt <- get_tracks_23(track_id)
-  
-  for (i in seq(length(dt$artists))){
-    top_artists_2023 <- rbind(top_artists_2023, data.frame(Artist_Name = dt$artists[[i]]$name))
-  }
-  
-  # Return the resulting dataframe
-  return(top_artists_2023)
-}
-
-top_artists_2023 <- get_artists_23("0vjeOZ3Ft5jvAi9SBFJm1j")
-
-
-result_list <- lapply(top_artists_2023_USA$Spotify_Track_ID, get_artists_23)
-top_artists_2023 <- do.call(rbind, result_list)
 
 # Get the artist ID
 top_artists_2023$Spotify_Artist_ID <- lapply(top_artists_2023$Artist_Name, get_artist_id)
 
-# Get the artists' popularity
-top_artists_2023$Popularity <- NA
+# Get Artist Info
+result <- lapply(top_artists_2023$Spotify_Artist_ID, get_artist_info)
 
-# Function to search for artist by name and get the artist ID
-get_popularity <- function(artist_name) {
-  # Spotify API endpoint for searching artists by name
-  endpoint <- 'https://api.spotify.com/v1/search'
-  
-  # Set up the request parameters with a filter for artists
-  params <- list(q = artist_name, type = 'artist', limit = 1)
-  
-  # Set up the request headers with the access token
-  headers <- c('Authorization' = paste0('Bearer ', access_token))
-  
-  # Make the GET request
-  response <- GET(endpoint, query = params, add_headers(headers))
-  
-  search_result <- content(response, 'parsed')
-  
-  popularity <- search_result$artists$items[[1]]$popularity
-  
-  return(popularity)
-}
+# Extract individual elements: Popularity and Followers
+top_artists_2023$Followers <- sapply(result, function(x) x$followers)
+top_artists_2023$Popularity <- sapply(result, function(x) x$popularity)
 
-top_artists_2023$Popularity <- lapply(top_artists_2023$Artist_Name, get_popularity)
-
-# Get the artists' followers
-top_artists_2023$Followers <- NA
-
-# Function to search for artist by name and get the artist ID
-get_followers <- function(artist_name) {
-  # Spotify API endpoint for searching artists by name
-  endpoint <- 'https://api.spotify.com/v1/search'
-  
-  # Set up the request parameters with a filter for artists
-  params <- list(q = artist_name, type = 'artist', limit = 1)
-  
-  # Set up the request headers with the access token
-  headers <- c('Authorization' = paste0('Bearer ', access_token))
-  
-  # Make the GET request
-  response <- GET(endpoint, query = params, add_headers(headers))
-  
-  search_result <- content(response, 'parsed')
-  
-  followers <- search_result$artists$items[[1]]$followers$total
-  
-  return(followers)
-}
-
-top_artists_2023$Followers <- lapply(top_artists_2023$Artist_Name, get_followers)
+# Remove the row names
+top_artists_2023 <- data.frame(top_artists_2023, row.names = NULL)
 
 # Convert list columns to character
 top_artists_2023$Spotify_Artist_ID <- as.character(top_artists_2023$Spotify_Artist_ID)
-top_artists_2023$Popularity <- as.character(top_artists_2023$Popularity)
-top_artists_2023$Followers <- as.character(top_artists_2023$Followers)
 
 # Write top_artists_2023 to the relational database
 dbWriteTable(db, "top_artists_2023_USA_df", top_artists_2023, overwrite = TRUE)
@@ -818,6 +727,7 @@ check_table(db, "top_artists_2023_USA_df")
 
 
 ```{r get the spotify top groups 2023 USA, eval=FALSE}
+
 # 7) Get the Spotify playlist "Top Groups of 2023, USA"
 
 top_groups_2023 <- data.frame(
@@ -833,49 +743,31 @@ top_groups_2023 <- data.frame(
   stringsAsFactors = FALSE
 )
 
-# A playlist dataframe
+# Get the Playlist Info
 top_groups_2023_id <- "37i9dQZF1DX6Q49slBRXI2"
 top_groups_2023_dt <- get_playlist_info(top_groups_2023_id, top_groups_2023)
 
-# Get the track info from the playlist 
+# Create a dataframe for the artists on the Top Groups 2023 USA Playlist
 top_groups_2023 <- data.frame(
-  Artist_Name = character(0),
+  Artist_Name = top_groups_2023_dt$Artist_Name,
   stringsAsFactors = FALSE
 )
 
-# Function that gets the artist info given the track id
-get_artists_23 <- function(track_id) {
-  
-  # Get the playlist data given the playlist id
-  dt <- get_tracks_23(track_id)
-  
-  for (i in seq(length(dt$artists))){
-    top_groups_2023 <- rbind(top_groups_2023, data.frame(Artist_Name = dt$artists[[i]]$name))
-  }
-  
-  # Return the resulting dataframe
-  return(top_groups_2023)
-}
-
-result_list <- lapply(top_groups_2023_dt$Spotify_Track_ID, get_artists_23)
-top_groups_2023 <- do.call(rbind, result_list)
-
-# Artist ID
-top_groups_2023$Spotify_Artist_ID <- NA
+# Get the artist ID
 top_groups_2023$Spotify_Artist_ID <- lapply(top_groups_2023$Artist_Name, get_artist_id)
 
-# Artist Popularity
-top_groups_2023$Popularity <- NA
-top_groups_2023$Popularity <- lapply(top_groups_2023$Artist_Name, get_popularity)
+# Get Artist Info
+result <- lapply(top_groups_2023$Spotify_Artist_ID, get_artist_info)
 
-# Artist Followers
-top_groups_2023$Followers <- NA
-top_groups_2023$Followers <- lapply(top_groups_2023$Artist_Name, get_followers)
+# Extract individual elements: Popularity and Followers
+top_groups_2023$Followers <- sapply(result, function(x) x$followers)
+top_groups_2023$Popularity <- sapply(result, function(x) x$popularity)
+
+# Remove the row names
+top_groups_2023 <- data.frame(top_groups_2023, row.names = NULL)
 
 # Convert list columns to character
 top_groups_2023$Spotify_Artist_ID <- as.character(top_groups_2023$Spotify_Artist_ID)
-top_groups_2023$Popularity <- as.character(top_groups_2023$Popularity)
-top_groups_2023$Followers <- as.character(top_groups_2023$Followers)
 
 # Write top_groups_2023 to the relational database
 dbWriteTable(db, "top_groups_2023_df", top_groups_2023, overwrite = TRUE)
@@ -888,185 +780,7 @@ dbWriteTable(db, "top_groups_2023_df", top_groups_2023, overwrite = TRUE)
 check_table(db, "top_groups_2023_df")
 ```
 
-```{r get Ticketmaster API data, eval=FALSE}
-
-################################################################################
-# Step 2C: Ticketmaster API Data
-
-readRenviron("../../Documents/R_Environs/ticketmaster_api.env")
-ticketmaster_apikey <- Sys.getenv("KEY")
-
-
-get_event_data <- function(artist_name, ticketmaster_apikey){
-  # Specify an endpoint (e.g., events)
-  endpoint <- "events"
-  
-  # Build the complete URL
-  url <- paste0("https://app.ticketmaster.com/discovery/v2/", endpoint)
-  
-  # Set query parameters
-  params <- list(
-    apikey = ticketmaster_apikey,
-    countryCode = "US",
-    keyword = artist_name,  # Replace with the name of the artist
-    startDateTime = "2023-01-01T00:00:00Z",  # Set the start date to filter past events
-    endDateTime = "2023-12-31T23:59:59Z"    # Set the end date
-    #size = 5 
-  )
-  
-  # Make the GET request
-  response <- GET(url, query = params)
-  content <- content(response, "parsed") 
-  
-  return(content)
-}
-
-content <- get_event_data("Taylor Swift", ticketmaster_apikey)
-
-event_data <- data.frame(
-  Artist_Name = character(0),
-  Event_Name = character(0),
-  Event_ID = character(0),
-  stringsAsFactors = FALSE
-)
-
-# function that gets the event data given the artist name
-get_ticketmaster_info <- function(artist_name, apikey = ticketmaster_apikey) {
-  
-  # Get the playlist data given the playlist id
-  dt <- get_event_data(artist_name, apikey)
-  
-  
-  # Loop through the top tracks for each artist
-  if (!is.null(dt$'_embedded'$events) && length(dt$'_embedded'$events) > 0) {
-    # Loop to append values
-    for (i in seq(length(dt$'_embedded'$events))) {
-      # Append the values to the data frame
-      event_data <- rbind(event_data, data.frame(Artist_Name = artist_name,
-                                                 Event_Name = dt$'_embedded'$events[[i]]$name,
-                                                 Event_ID = dt$'_embedded'$events[[i]]$id
-      ))
-    }
-    
-  } else {
-    # Print a message or take appropriate action when top_tracks$tracks is NULL or empty
-    event_data <- rbind(event_data, data.frame(
-      Artist_Name = artist_name,
-      Event_Name = NA,
-      Event_ID = NA
-    ))
-  }
-  
-  # Return the resulting data frame
-  return(event_data)
-}
-
-result_list <- lapply(top_hundred_artists$Artist_Name, get_ticketmaster_info)
-event_data <- do.call(rbind, result_list)
-
-# Clean the data
-event_data <- event_data %>%
-  # Clean up "The Drifters"
-  mutate(
-    Event_Name = ifelse(Artist_Name == "The Drifters", NA, Event_Name),
-    Event_ID = ifelse(Artist_Name == "The Drifters", NA, Event_ID)
-  ) %>%
-  filter(!duplicated(Artist_Name) | Artist_Name != "The Drifters")  %>%
-  
-  # Clean up "Eagles"
-  mutate(
-    Event_Name = ifelse(Artist_Name == "Eagles", NA, Event_Name),
-    Event_ID = ifelse(Artist_Name == "Eagles", NA, Event_ID)
-  ) %>%
-  filter(!duplicated(Artist_Name) | Artist_Name != "Eagles")  %>%
-  
-  # Clean up "The Doors"
-  mutate(
-    Event_Name = ifelse(Artist_Name == "The Doors", NA, Event_Name),
-    Event_ID = ifelse(Artist_Name == "The Doors", NA, Event_ID)
-  ) %>%
-  filter(!duplicated(Artist_Name) | Artist_Name != "The Doors")  %>%
-  
-  # Clean up "The Police"
-  filter(!(Artist_Name == "The Police" & (Event_Name == "Fire Vs Police Flag Football" | Event_Name == "POLICE STATE / GEMM / CENOBITE / DOGPILE"))) %>%
-  
-  # Clean up "Cream" 
-  mutate(
-    Event_Name = ifelse(Artist_Name == "Cream", NA, Event_Name),
-    Event_ID = ifelse(Artist_Name == "Cream", NA, Event_ID)
-  ) %>%
-  filter(!duplicated(Artist_Name) | Artist_Name != "Cream")  %>%  
-  
-  # Clean up "Grateful Dead"
-  filter(!(Artist_Name == "Grateful Dead" & (Event_Name == "DEAD NIGHT w/ Grateful Upstate Toodeloo" | Event_Name == "POLICE STATE / GEMM / CENOBITE / DOGPILE"))) %>%
-  
-  # Clean up "Howlin' Wolf" 
-  mutate(
-    Event_Name = ifelse(Artist_Name == "Howlin’ Wolf", NA, Event_Name),
-    Event_ID = ifelse(Artist_Name == "Howlin’ Wolf", NA, Event_ID)
-  ) %>%
-  filter(!duplicated(Artist_Name) | Artist_Name != "Howlin’ Wolf")  %>%
-  
-  # Clean up "Queen"
-  filter(!(Artist_Name == "Queen" & Event_Name == "The Snow Queen")) %>%
-
-  # Clean up "The Band" 
-  mutate(
-    Event_Name = ifelse(Artist_Name == "The Band", NA, Event_Name),
-    Event_ID = ifelse(Artist_Name == "The Band", NA, Event_ID)
-  ) %>%
-  filter(!duplicated(Artist_Name) | Artist_Name != "The Band")  %>%
-
-  # Clean up "The Doors" 
-  mutate(
-    Event_Name = ifelse(Artist_Name == "The Doors", NA, Event_Name),
-    Event_ID = ifelse(Artist_Name == "The Doors", NA, Event_ID)
-  ) %>%
-  filter(!duplicated(Artist_Name) | Artist_Name != "The Doors")  %>%
-
-  # Clean up "The Who" 
-  mutate(
-    Event_Name = ifelse(Artist_Name == "The Who", NA, Event_Name),
-    Event_ID = ifelse(Artist_Name == "The Who", NA, Event_ID)
-  ) %>%
-  filter(!duplicated(Artist_Name) | Artist_Name != "The Who")  %>%
-      
-  # Clean up "Buddy Holly" 
-  mutate(
-    Event_Name = ifelse(Artist_Name == "Buddy Holly", NA, Event_Name),
-    Event_ID = ifelse(Artist_Name == "Buddy Holly", NA, Event_ID)
-  ) %>%
-  filter(!duplicated(Artist_Name) | Artist_Name != "Buddy Holly")  %>%
-    
-  # Clean up "The Beach Boys" 
-  mutate(
-    Event_Name = ifelse(Artist_Name == "The Beach Boys", NA, Event_Name),
-    Event_ID = ifelse(Artist_Name == "The Beach Boys", NA, Event_ID)
-  ) %>%
-  filter(!duplicated(Artist_Name) | Artist_Name != "The Beach Boys")  %>%
-
-  # Clean up "James Brown" 
-  mutate(
-    Event_Name = ifelse(Artist_Name == "James Brown", NA, Event_Name),
-    Event_ID = ifelse(Artist_Name == "James Brown", NA, Event_ID)
-  ) %>%
-  filter(!duplicated(Artist_Name) | Artist_Name != "James Brown")
-    
-
-event_data <- event_data %>%
-  left_join(top_hundred_artists, by = 'Artist_Name') %>%
-  select(Artist_Name, Spotify_Artist_ID, Event_Name, Event_ID)
-
-# Write event_data to the relational database
-dbWriteTable(db, "event_data_df", event_data, overwrite = TRUE)
-```
-
-
-```{r call check_table on "event_data_df"}
-
-# Call check_table on "event_data_df"
-check_table(db, "event_data_df")
-```
+### 2C. RIAA Data (Tables 6 and 7)
 
 RIAA does not allow webscraping: https://www.riaa.com/privacy-policy-and-terms-of-use/. Therefore, I used wikipedia as a source to scrape information on album awards. Be aware, that the wikipedia data might not reflect the actual data on RIAA perfectly.
 
@@ -1074,7 +788,7 @@ RIAA does not allow webscraping: https://www.riaa.com/privacy-policy-and-terms-o
 ```{r get RIAA Wikipedia data, eval=FALSE}
 
 ################################################################################
-# Step 2D: RIAA Wikipedia Data
+# Step 2C: RIAA Wikipedia Data
 
 get_wikipedia_tables <- function(url){
   # Storing the URL's HTML code
@@ -1136,6 +850,280 @@ dbWriteTable(db, "certified_singles_df", certified_singles, overwrite = TRUE)
 check_table(db, "certified_albums_df")
 check_table(db, "certified_singles_df")
 ```
+
+### 2D. LastFM API Data (Table 8)
+
+```{r getLastFM API Data, eval=FALSE}
+
+################################################################################
+# Step 2D: LastFM API Data
+
+# Set up the API Key and endpoint
+readRenviron("../../Documents/R_Environs/lastfm_api.env")
+lastfm_apikey <- Sys.getenv("KEY")
+lastfm_endpoint <- "http://ws.audioscrobbler.com/2.0/"
+
+# Function that gets the chart data
+get_charts <- function(a_method){
+  # Set parameters for the request
+  params <- list(
+    method = a_method,
+    api_key = lastfm_apikey,
+    format = "json"
+  )
+
+  # Make the GET request
+  response <- GET(lastfm_endpoint, query = params)
+  content <- content(response, "parsed") 
+
+  return(content)
+}
+
+# Define methods
+method_artists = "chart.getTopArtists"
+method_tracks = "chart.getTopTracks"
+
+# Create empty dataframes
+charts_artists_data <- data.frame(
+  Artist_Name = character(0),
+  Playcount = numeric(0),
+  Listeners = numeric(0),
+  stringsAsFactors = FALSE
+)
+
+charts_tracks_data <- data.frame(
+  Artist_Name = character(0),
+  Playcount = numeric(0),
+  Listeners = numeric(0),
+  stringsAsFactors = FALSE
+)
+
+get_charts_info_artists <- function(a_method, dt_frame) {
+  
+  # Get the playlist data given the playlist id
+  dt <- get_charts(a_method)
+  
+  # Loop to append values
+  for (i in seq(length(dt$artists$artist))) {
+    # Append the values to the dataframe
+    dt_frame <- rbind(dt_frame, data.frame(Artist_Name = dt$artists$artist[[i]]$name,
+                                           Playcount = dt$artists$artist[[i]]$playcount,
+                                           Listeners = dt$artists$artist[[i]]$listeners
+    ))
+  }
+  
+  # Return the resulting dataframe
+  return(dt_frame)
+}
+
+get_charts_info_tracks <- function(a_method, dt_frame) {
+  
+  # Get the playlist data given the playlist id
+  dt <- get_charts(a_method)
+  
+  # Loop to append values
+  for (i in seq(length(dt$tracks$track))) {
+    # Append the values to the dataframe
+    dt_frame <- rbind(dt_frame, data.frame(Artist_Name = dt$tracks$track[[i]]$artist$name,
+                                           Playcount = dt$tracks$track[[i]]$playcount,
+                                           Listeners = dt$tracks$track[[i]]$listeners
+    ))
+  }
+  
+  # Return the resulting dataframe
+  return(dt_frame)
+}
+
+charts_artists_data <- get_charts_info_artists(method_artists, charts_artists_data)
+charts_tracks_data <- get_charts_info_tracks(method_tracks, charts_tracks_data)
+
+# Format the data
+charts_artists_data <- charts_artists_data %>%
+  mutate(Spotify_Artist_ID = ifelse(Artist_Name %in% top_hundred_artists$Artist_Name, 
+                                    top_hundred_artists$Spotify_Artist_ID[match(Artist_Name, top_hundred_artists$Artist_Name)], 
+                                    NA),
+         Top_Hundred = ifelse(!is.na(Spotify_Artist_ID), 1, 0),
+         Playcount = as.numeric(Playcount),
+         Listeners = as.numeric(Listeners)
+         ) 
+
+charts_tracks_data <- charts_tracks_data %>%
+  mutate(Spotify_Artist_ID = ifelse(Artist_Name %in% top_hundred_artists$Artist_Name, 
+                                    top_hundred_artists$Spotify_Artist_ID[match(Artist_Name, top_hundred_artists$Artist_Name)], 
+                                    NA),
+         Top_Hundred = ifelse(!is.na(Spotify_Artist_ID), 1, 0),
+         Playcount = as.numeric(Playcount),
+         Listeners = as.numeric(Listeners)
+  ) 
+
+# Write charts_artists_data and charts_tracks_data to the relational database
+dbWriteTable(db, "charts_artists_df", charts_artists_data, overwrite = TRUE)
+dbWriteTable(db, "charts_tracks_df", charts_tracks_data, overwrite = TRUE)
+```
+
+
+```{r call check_table on "charts_artists_df" and "charts_tracks_df"}
+
+# Call check_table on "charts_artists_df" and "charts_tracks_df"
+check_table(db, "charts_artists_df")
+check_table(db, "charts_tracks_df")
+```
+
+Potentially: just add the playcount and listeners to the top 100 dataframe to make it more efficient?
+
+```{r listeners and playcount for rs-t100, eval=FALSE}
+
+# Table 10: Listeners and Playcount for RS-T100
+
+# Create an empty dataframe
+artists_fm_data <- data.frame(
+  Artist_Name = character(0),
+  Playcount = numeric(0),
+  Listeners = numeric(0),
+  On_Tour = numeric(0),
+  stringsAsFactors = FALSE
+)
+
+get_artists_fm <- function(artist_name){
+  # Set parameters for the request
+  params <- list(
+    method = "artist.getInfo",
+    artist = artist_name,
+    api_key = lastfm_apikey,
+    format = "json"
+  )
+    # Make the GET request
+  response <- GET(lastfm_endpoint, query = params)
+  content <- content(response, "parsed") 
+  
+  return(content)
+}
+
+get_artist_info_fm <- function(artist_name) {
+  
+  # Get the playlist data given the playlist id
+  dt <- get_artists_fm(artist_name)
+  
+  # Append the values of interest
+  if (length(dt$artist) == 0) {
+    # If no data is available, create a data frame with NAs
+    artists_fm_data <- rbind(artists_fm_data, data.frame(Artist_Name = artist_name,
+                                                         Playcount = NA,
+                                                         Listeners = NA,
+                                                         On_Tour = NA))
+  } else {
+    # If data is available, append the values of interest
+    artists_fm_data <- rbind(artists_fm_data, data.frame(Artist_Name = artist_name,
+                                                         Playcount = dt$artist$stats$playcount,
+                                                         Listeners = dt$artist$stats$listeners,
+                                                         On_Tour = dt$artist$ontour))
+  }
+  
+  # Return the resulting dataframe
+  return(artists_fm_data)
+}
+
+result_list <- lapply(top_hundred_artists$Artist_Name, get_artist_info_fm)
+artists_fm_data <- do.call(rbind, result_list)
+
+# Format the data
+artists_fm_data <- artists_fm_data %>%
+  mutate(Spotify_Artist_ID = ifelse(Artist_Name %in% top_hundred_artists$Artist_Name,
+                                    top_hundred_artists$Spotify_Artist_ID[match(Artist_Name, top_hundred_artists$Artist_Name)], 
+                                    NA),
+         Playcount = as.numeric(Playcount),
+         Listeners = as.numeric(Listeners)
+         ) 
+
+# Write artists_fm_data to the relational database
+dbWriteTable(db, "artists_fm_df", artists_fm_data, overwrite = TRUE)
+```
+
+
+```{r call check_table on "artists_fm_df"}
+
+# Call check_table on "artists_fm_df"
+check_table(db, "artists_fm_df")
+```
+
+```{r Last FM top tracks for RS-T100, eval=FALSE}
+
+# Table 11: Last FM top tracks for each artist
+
+# Create an empty dataframe
+top_tracks_fm_data <- data.frame(
+  Artist_Name = character(0),
+  Track_Name = character(0),
+  Track_Playcount = numeric(0),
+  Track_Listeners = numeric(0),
+  stringsAsFactors = FALSE
+)
+
+get_top_tracks_fm <- function(artist_name){
+  # Set parameters for the request
+  params <- list(
+    method = "artist.getTopTracks",
+    artist = artist_name,
+    api_key = lastfm_apikey,
+    format = "json"
+  )
+  
+  # Make the GET request
+  response <- GET(lastfm_endpoint, query = params)
+  content <- content(response, "parsed") 
+  
+  return(content)
+}
+
+get_tracks_info_fm <- function(artist_name) {
+  
+  # Get the playlist data given the playlist id
+  dt <- get_top_tracks_fm(artist_name)
+  
+  # Append the values of interest
+  if (length(dt$toptracks$track) == 0) {
+    # If no data is available, create a data frame with NAs
+    top_tracks_fm_data <- rbind(top_tracks_fm_data, data.frame(Artist_Name = artist_name,
+                                                               Track_Name = NA,
+                                                               Track_Playcount = NA,
+                                                               Track_Listeners = NA
+                                                               ))
+  } else {
+    # If data is available, append the values of interest
+    top_tracks_fm_data <- rbind(top_tracks_fm_data, data.frame(Artist_Name = artist_name,
+                                                               Track_Name = dt$toptracks$track[[1]]$name,
+                                                               Track_Playcount = dt$toptracks$track[[1]]$playcount,
+                                                               Track_Listeners = dt$toptracks$track[[1]]$listeners
+                                                               ))
+  }
+  
+  # Return the resulting dataframe
+  return(top_tracks_fm_data)
+}
+
+result_list <- lapply(top_hundred_artists$Artist_Name, get_tracks_info_fm)
+top_tracks_fm_data <- do.call(rbind, result_list)
+
+# Format the data
+top_tracks_fm_data <- top_tracks_fm_data %>%
+  mutate(Spotify_Artist_ID = ifelse(Artist_Name %in% top_hundred_artists$Artist_Name,
+                                    top_hundred_artists$Spotify_Artist_ID[match(Artist_Name, top_hundred_artists$Artist_Name)], 
+                                    NA),
+         Track_Playcount = as.numeric(Track_Playcount),
+         Track_Listeners = as.numeric(Track_Listeners)
+  ) 
+
+# Write top_tracks_fm_data to the relational database
+dbWriteTable(db, "top_tracks_fm_df", top_tracks_fm_data, overwrite = TRUE)
+```
+
+
+```{r call check_table on "top_tracks_fm_df"}
+
+# Call check_table on "top_tracks_fm_df"
+check_table(db, "top_tracks_fm_df")
+```
+
 
 ## 3. Analysis
 
