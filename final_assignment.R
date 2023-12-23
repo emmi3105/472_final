@@ -2347,12 +2347,10 @@ ggplot2_default_colors <- c(
 )
 
 
-
-
-
-
-
-
+additional_colors
+"#E41A1C" "#377EB8" "#4DAF4A" "#984EA3"
+"#FF7F00" "#FFFF33" "#A65628" "#F781BF"
+"#999999"
 
 
 

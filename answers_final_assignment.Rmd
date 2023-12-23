@@ -291,7 +291,6 @@ system("taskkill /im java.exe /f", intern=FALSE, ignore.stdout=FALSE)
 ### 2B. Spotify API Data (Tables 1 - 5)
 
 ```{r get Spotify API data, eval=FALSE}
-
 ################################################################################
 # Step 2B: Spotify API data
 
@@ -471,16 +470,6 @@ Latest_Album_Release <- album_data %>%
 top_hundred_artists <- merge(top_hundred_artists, Latest_Album_Release, by = "Spotify_Artist_ID", all.x = TRUE)
 
 top_hundred_artists$Latest_Album_Release <- as.character(top_hundred_artists$Latest_Album_Release)
-
-# Write top_hundred_artists_df to the relational database
-dbWriteTable(db, "top_hundred_artists_df", top_hundred_artists, overwrite = TRUE)
-
-```
-
-```{r call check_table on "top_hundred_artists_df"}
-
-# Call check_table on "top_hundred_artists_df"
-check_table(db, "top_hundred_artists_df")
 ```
 
 ```{r get the artist top tracks, eval=FALSE}
@@ -851,7 +840,7 @@ check_table(db, "certified_albums_df")
 check_table(db, "certified_singles_df")
 ```
 
-### 2D. LastFM API Data (Table 8)
+### 2D. LastFM API Data (Tables 8-10)
 
 ```{r getLastFM API Data, eval=FALSE}
 
@@ -1035,16 +1024,31 @@ artists_fm_data <- artists_fm_data %>%
          Listeners = as.numeric(Listeners)
          ) 
 
-# Write artists_fm_data to the relational database
-dbWriteTable(db, "artists_fm_df", artists_fm_data, overwrite = TRUE)
+# Add the newly retrieved variables "Playcount", "Listeners" and "On_Tour" to top_hundred_artists
+
+top_hundred_artists$Listeners_LastFM <- ifelse(top_hundred_artists$Spotify_Artist_ID %in%artists_fm_data$Spotify_Artist_ID, 
+                                               artists_fm_data$Listeners[match(top_hundred_artists$Spotify_Artist_ID, artists_fm_data$Spotify_Artist_ID)], 
+                                               NA)
+
+top_hundred_artists$Playcount_LastFM <- ifelse(top_hundred_artists$Spotify_Artist_ID %in%artists_fm_data$Spotify_Artist_ID, 
+                                               artists_fm_data$Playcount[match(top_hundred_artists$Spotify_Artist_ID, artists_fm_data$Spotify_Artist_ID)], 
+                                               NA)
+
+top_hundred_artists$On_Tour <- ifelse(top_hundred_artists$Spotify_Artist_ID %in%artists_fm_data$Spotify_Artist_ID,
+                                      artists_fm_data$On_Tour[match(top_hundred_artists$Spotify_Artist_ID, artists_fm_data$Spotify_Artist_ID)], 
+                                      NA)
+
+# Write top_hundred_artists to the relational database
+dbWriteTable(db, "top_hundred_artists_df", top_hundred_artists, overwrite = TRUE)
 ```
 
 
-```{r call check_table on "artists_fm_df"}
+```{r call check_table on "top_hundred_artists_df"}
 
-# Call check_table on "artists_fm_df"
-check_table(db, "artists_fm_df")
+# Call check_table on "top_hundred_artists_df"
+check_table(db, "top_hundred_artists_df")
 ```
+
 
 ```{r Last FM top tracks for RS-T100, eval=FALSE}
 
@@ -1129,6 +1133,140 @@ check_table(db, "top_tracks_fm_df")
 
 
 ### A. Are the Rolling Stones Top 100 still relevant in 2023?
+
+We calculate an *Endurement Score* for the RS-T100 by dividing the following four variables by four: 
+
+1. Spotify Popularity
+2. Spotify Followers
+3. Last FM Playcount
+4. Last FM Listeners
+
+We create a scale. Taylor Swift, as the artist with the most monthly listeners on Spotify will have the full score of 100%, a score of 0% is created when all of the variables are 0.^[As of 23. December 2023, Taylor Swift had 109'341'734 monthly listeners on Spotify.] 
+
+#### On a scale of 1 to Taylor Swift ...?
+
+```{r calculate endurement score, eval=FALSE}
+endurement_score_query <-  "
+  SELECT Spotify_Artist_ID, Followers, Popularity, Listeners_LastFM, Playcount_LastFM
+  FROM top_hundred_artists_df 
+  ;
+"
+
+# Execute the query
+endurement_score_result <- dbGetQuery(db, endurement_score_query)
+
+endurement_score_result <- endurement_score_result %>%
+  mutate(Followers = ifelse(is.na(Followers), 1, Followers),
+         Popularity = ifelse(0, 1, Popularity),
+         Listeners_LastFM = ifelse(is.na(Listeners_LastFM), 1, Listeners_LastFM),
+         Playcount_LastFM = ifelse(is.na(Playcount_LastFM), 1, Playcount_LastFM),
+         Spotify_Endurement = as.numeric(Followers) * as.numeric(Popularity),
+         LastFM_Endurement = as.numeric(Listeners_LastFM) * as.numeric(Playcount_LastFM))
+  
+
+# Taylor Swift Endurement Score
+ts_data <- get_artist_info("06HL4z0CvFAxyc27GXpf02")
+ts_followers <- as.numeric(ts_data$followers)
+ts_popularity <- as.numeric(ts_data$popularity)
+
+ts_fm_data <- get_artists_fm("Taylor Swift")
+ts_listeners_fm <- as.numeric(ts_fm_data$artist$stats$listeners)
+ts_playcount_fm <- as.numeric(ts_fm_data$artist$stats$playcount)
+
+ts_spotify_endurement = ts_followers * ts_popularity 
+ts_lastfm_endurement = ts_listeners_fm * ts_playcount_fm
+
+endurement_score_result <- endurement_score_result %>%
+  mutate(Spotify_Endurement = Spotify_Endurement/ts_spotify_endurement * 100,
+         LastFM_Endurement = LastFM_Endurement/ts_lastfm_endurement * 100)
+
+endurement_score_result <- endurement_score_result %>%
+  mutate(LastFM_Endurement = as.numeric(format(LastFM_Endurement, scientific = FALSE)))
+
+# Save the data frame as a global variable
+assign("endurement_score_result", endurement_score_result, envir = .GlobalEnv)
+
+# Save the data frame as an RData file in the current working directory
+save(endurement_score_result, file = "data/endurement_score_result.RData")
+```
+
+
+```{r plot endurement score}
+
+# Load the data from the RData file
+load("data/endurement_score_result.RData")
+
+# Make a copy of the data frame
+endurement_score_data <- data.frame(endurement_score_result)
+
+# Plot the endurement scores (on a scale of 1 to Taylor Swift)
+endurement_plot <- ggplot(endurement_score_data,
+                          aes(x = Spotify_Endurement, y = LastFM_Endurement)) +
+  geom_point(size = 1, color = "#F8766D") +
+  geom_point(aes(x = 100, y = 100), color = "#00BA38", size = 3, fill = "#00BA38", shape = 23) +
+  # Add labels
+  geom_text(aes(x = 25, y = 30, label = "RS-T100"), size = 3, family = "Arial", color = "#F8766D") +
+  geom_text(aes(x = 100, y = 100, label = "Taylor Swift"), vjust = 2, hjust = 1, size = 3, family = "Arial", color = "#00BA38") +
+  # Add titles
+  labs(title = "Spotify Endurement vs. Last FM Endurement",
+       x = "Spotify Endurement",
+       y = "LastFM Endurement"
+       ) +
+  theme_minimal() +
+  # Adjust the font size for the title and the axes
+  theme(
+    axis.text = element_text(size = 8),     
+    axis.title = element_text(size = 8),    
+    plot.title = element_text(size = 12)
+    )
+
+    
+endurement_plot
+```
+
+
+
+
+
+
+More precisely, we will compare the distributions of these four variables between the RS-T100 and (A) the most streamed artists on Spotify and (B) the most streamed artists on Last FM.
+
+AND THEN INTERSECTIONS????
+
+
+### B. What explains endurement?
+
+-> potentially the four variables are all positively correlated 
+
+#### Spotify - Popularity and Followers
+
+#### Charts - Listeners and Playcount (double plot tracks and artists)
+
+-> hence, we need to look somewhere else for the explanation
+
+#### Track Popularity vs. Endurement (Spotify)
+
+#### Artists Popularity/Followers vs. Latest Album Release (Spotify) (double plot)
+
+#### RIAA Certifications (RIAA Ranking vs. Popularity and Followers)
+
+#### Tour: Last FM 
+
+**Question**: Is the playcount/listeners higher for artists that are on tour?
+
+
+
+### C. Intersections
+
+
+
+### D. Critique
+
+- Most of the artists are men (percentage)
+- Most of the artists are from the US
+- Most of the artists are (relatively) old
+
+
 
 #### Popularity: Rolling Stones vs. Spotify Top 100
 
