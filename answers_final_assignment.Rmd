@@ -100,6 +100,9 @@ To DO:
 - Überarbeiten: in general data extraction Last FM
 - Gleich weitermachen: Data Analysis: besser strukturieren, ordnen, schauen, welche grafiken es wirklich braucht
 
+
++++ Parliament Funkadelic: andere Spotify ID: 6XswoC68grx55in1WQnJ7E"
+
 ## 1. Introduction 
 
 ```{r create a relational database}
@@ -350,6 +353,10 @@ get_artist_id <- function(artist_name) {
 
 # Apply the function to the entire "Artist_Name" column in the data frame
 top_hundred_artists$Spotify_Artist_ID <- sapply(top_hundred_artists$Artist_Name, get_artist_id)
+
+# Replace the ID for Parliament and Funcadelic: 6XswoC68grx55in1WQnJ7E
+top_hundred_artists <- top_hundred_artists %>%
+  mutate(Spotify_Artist_ID = ifelse(Artist_Name == "Parliament and Funkadelic", "6XswoC68grx55in1WQnJ7E", Spotify_Artist_ID))
 
 # 2) Get the artist info given the artist ID 
 get_artist_info <- function(artist_id){
@@ -702,16 +709,6 @@ top_artists_2023 <- data.frame(top_artists_2023, row.names = NULL)
 
 # Convert list columns to character
 top_artists_2023$Spotify_Artist_ID <- as.character(top_artists_2023$Spotify_Artist_ID)
-
-# Write top_artists_2023 to the relational database
-dbWriteTable(db, "top_artists_2023_USA_df", top_artists_2023, overwrite = TRUE)
-```
-
-
-```{r call check_table on "top_artists_2023_USA_df"}
-
-# Call check_table on "top_artists_2023_USA_df"
-check_table(db, "top_artists_2023_USA_df")
 ```
 
 
@@ -800,8 +797,8 @@ assign("certified_albums_data", certified_albums_data, envir = .GlobalEnv)
 assign("certified_singles_data", certified_singles_data, envir = .GlobalEnv)
 
 # Save the global variables to an RData files
-save(certified_albums_df, file = "data/certified_albums_data.RData")
-save(certified_singles_df, file = "data/certified_singles_data.RData")
+save(certified_albums_data, file = "data/certified_albums_data.RData")
+save(certified_singles_data, file = "data/certified_singles_data.RData")
 
 # Load global variables
 load("data/certified_albums_data.RData")
@@ -945,6 +942,14 @@ charts_tracks_data <- charts_tracks_data %>%
          Listeners = as.numeric(Listeners)
   ) 
 
+# Add the Spotify_Artist_ID for every instance
+charts_artists_data$Spotify_Artist_ID <- sapply(charts_artists_data$Artist_Name, get_artist_id)
+
+# Add the Followers and Popularity
+result <- lapply(charts_artists_data$Spotify_Artist_ID, get_artist_info)
+charts_artists_data$Followers <- sapply(result, function(x) x$followers)
+charts_artists_data$Popularity <- sapply(result, function(x) x$popularity)
+
 # Write charts_artists_data and charts_tracks_data to the relational database
 dbWriteTable(db, "charts_artists_df", charts_artists_data, overwrite = TRUE)
 dbWriteTable(db, "charts_tracks_df", charts_tracks_data, overwrite = TRUE)
@@ -957,8 +962,6 @@ dbWriteTable(db, "charts_tracks_df", charts_tracks_data, overwrite = TRUE)
 check_table(db, "charts_artists_df")
 check_table(db, "charts_tracks_df")
 ```
-
-Potentially: just add the playcount and listeners to the top 100 dataframe to make it more efficient?
 
 ```{r listeners and playcount for rs-t100, eval=FALSE}
 
@@ -1038,6 +1041,16 @@ top_hundred_artists$On_Tour <- ifelse(top_hundred_artists$Spotify_Artist_ID %in%
                                       artists_fm_data$On_Tour[match(top_hundred_artists$Spotify_Artist_ID, artists_fm_data$Spotify_Artist_ID)], 
                                       NA)
 
+# We have missing values for Parliament and Funkadelic
+pf_dt <- get_artists_fm("Parliament Funkadelic")
+
+pf_dt$artist$ontour
+
+top_hundred_artists <- top_hundred_artists %>%
+  mutate(Listeners_LastFM = ifelse(Artist_Name == "Parliament and Funkadelic", pf_dt$artist$stats$listeners, Listeners_LastFM),
+         Playcount_LastFM = ifelse(Artist_Name == "Parliament and Funkadelic", pf_dt$artist$stats$playcount, Playcount_LastFM),
+         On_Tour = ifelse(Artist_Name == "Parliament and Funkadelic", pf_dt$artist$ontour, On_Tour))
+
 # Write top_hundred_artists to the relational database
 dbWriteTable(db, "top_hundred_artists_df", top_hundred_artists, overwrite = TRUE)
 ```
@@ -1047,6 +1060,55 @@ dbWriteTable(db, "top_hundred_artists_df", top_hundred_artists, overwrite = TRUE
 
 # Call check_table on "top_hundred_artists_df"
 check_table(db, "top_hundred_artists_df")
+```
+
+```{r get playcount and listeners for Spotify Top Artists, eval=FALSE}
+# Get the playcount and listeners for the Spotify Top Artists of 2023
+
+# Create an empty dataframe
+artists_fm_data <- data.frame(
+  Artist_Name = character(0),
+  Playcount = numeric(0),
+  Listeners = numeric(0),
+  On_Tour = numeric(0),
+  stringsAsFactors = FALSE
+)
+
+result_list <- lapply(top_artists_2023$Artist_Name, get_artist_info_fm)
+artists_fm_data <- do.call(rbind, result_list)
+
+# Format the data
+artists_fm_data <- artists_fm_data %>%
+  mutate(Spotify_Artist_ID = ifelse(Artist_Name %in% top_artists_2023$Artist_Name,
+                                    top_artists_2023$Spotify_Artist_ID[match(Artist_Name, top_artists_2023$Artist_Name)], 
+                                    NA),
+         Playcount = as.numeric(Playcount),
+         Listeners = as.numeric(Listeners)
+         ) 
+
+# Add the newly retrieved variables "Playcount", "Listeners" and "On_Tour" to top_artists_2023
+
+top_artists_2023$Listeners_LastFM <- ifelse(top_artists_2023$Spotify_Artist_ID %in%artists_fm_data$Spotify_Artist_ID, 
+                                               artists_fm_data$Listeners[match(top_artists_2023$Spotify_Artist_ID, artists_fm_data$Spotify_Artist_ID)], 
+                                               NA)
+
+top_artists_2023$Playcount_LastFM <- ifelse(top_artists_2023$Spotify_Artist_ID %in%artists_fm_data$Spotify_Artist_ID, 
+                                               artists_fm_data$Playcount[match(top_artists_2023$Spotify_Artist_ID, artists_fm_data$Spotify_Artist_ID)], 
+                                               NA)
+
+top_artists_2023$On_Tour <- ifelse(top_artists_2023$Spotify_Artist_ID %in%artists_fm_data$Spotify_Artist_ID,
+                                      artists_fm_data$On_Tour[match(top_artists_2023$Spotify_Artist_ID, artists_fm_data$Spotify_Artist_ID)], 
+                                      NA)
+
+# Write top_artists_2023 to the relational database
+dbWriteTable(db, "top_artists_2023_USA_df", top_artists_2023, overwrite = TRUE)
+```
+
+
+```{r call check_table on "top_artists_2023_USA_df"}
+
+# Call check_table on "top_artists_2023_USA_df"
+check_table(db, "top_artists_2023_USA_df")
 ```
 
 
@@ -1146,18 +1208,40 @@ We create a scale. Taylor Swift, as the artist with the most monthly listeners o
 #### On a scale of 1 to Taylor Swift ...?
 
 ```{r calculate endurement score, eval=FALSE}
-endurement_score_query <-  "
+
+endurement_score_query_rs100 <-  "
   SELECT Spotify_Artist_ID, Followers, Popularity, Listeners_LastFM, Playcount_LastFM
   FROM top_hundred_artists_df 
   ;
 "
 
-# Execute the query
-endurement_score_result <- dbGetQuery(db, endurement_score_query)
+endurement_score_query_spotify <-  "
+  SELECT Spotify_Artist_ID, Followers, Popularity, Listeners_LastFM, Playcount_LastFM
+  FROM top_artists_2023_USA_df 
+  ;
+"
+
+endurement_score_query_fm <-  "
+  SELECT Spotify_Artist_ID, Followers, Popularity, Listeners AS Listeners_LastFM, Playcount AS Playcount_LastFM
+  FROM charts_artists_df 
+  ;
+"
+
+# Execute the queries
+endurement_score_result_rs100 <- dbGetQuery(db, endurement_score_query_rs100)
+endurement_score_result_spotify <- dbGetQuery(db, endurement_score_query_spotify)
+endurement_score_result_fm <- dbGetQuery(db, endurement_score_query_fm)
+
+# Add indicators and bind the data frames
+endurement_score_result_rs100$Appearance <- "Rolling Stones Top 100"
+endurement_score_result_spotify$Appearance <- "Spotify Top 100 2023"
+endurement_score_result_fm$Appearance <- "Last FM Artist Charts"
+endurement_score_result <- rbind(endurement_score_result_rs100, endurement_score_result_spotify, endurement_score_result_fm)
+
 
 endurement_score_result <- endurement_score_result %>%
   mutate(Followers = ifelse(is.na(Followers), 1, Followers),
-         Popularity = ifelse(0, 1, Popularity),
+         Popularity = ifelse(is.na(Followers), 1, Popularity),
          Listeners_LastFM = ifelse(is.na(Listeners_LastFM), 1, Listeners_LastFM),
          Playcount_LastFM = ifelse(is.na(Playcount_LastFM), 1, Playcount_LastFM),
          Spotify_Endurement = as.numeric(Followers) * as.numeric(Popularity),
@@ -1199,13 +1283,23 @@ load("data/endurement_score_result.RData")
 # Make a copy of the data frame
 endurement_score_data <- data.frame(endurement_score_result)
 
+
+endurement_score_data <- endurement_score_data %>%
+  mutate(Appearance = replace(Appearance, Appearance == 'Rolling Stones Top 100', 'RS Top 100'),
+         Appearance = replace(Appearance, Appearance == 'Spotify Top 100 2023', 'Spotify Top 50'),
+         Appearance = replace(Appearance, Appearance == 'Last FM Artist Charts', 'LastFM Top 50')
+         )
+
+manual_colors <- c("RS Top 100" = "#F8766D", 
+                   "Spotify Top 50" = "#00BFC4",
+                   "LastFM Top 50" = "#EBAC23")
+
 # Plot the endurement scores (on a scale of 1 to Taylor Swift)
 endurement_plot <- ggplot(endurement_score_data,
-                          aes(x = Spotify_Endurement, y = LastFM_Endurement)) +
-  geom_point(size = 1, color = "#F8766D") +
+                          aes(x = Spotify_Endurement, y = LastFM_Endurement, color = Appearance)) +
+  geom_point(size = 1) +
   geom_point(aes(x = 100, y = 100), color = "#00BA38", size = 3, fill = "#00BA38", shape = 23) +
   # Add labels
-  geom_text(aes(x = 25, y = 30, label = "RS-T100"), size = 3, family = "Arial", color = "#F8766D") +
   geom_text(aes(x = 100, y = 100, label = "Taylor Swift"), vjust = 2, hjust = 1, size = 3, family = "Arial", color = "#00BA38") +
   # Add titles
   labs(title = "Spotify Endurement vs. Last FM Endurement",
@@ -1218,18 +1312,73 @@ endurement_plot <- ggplot(endurement_score_data,
     axis.text = element_text(size = 8),     
     axis.title = element_text(size = 8),    
     plot.title = element_text(size = 12)
-    )
+    ) +
+  # Manually set colors
+  scale_color_manual(values = manual_colors)
 
     
 endurement_plot
 ```
 
+```{r plot the endurement distribution, fig.width=10}
+
+endurement_distribution_fm <- ggplot(endurement_score_data, aes(x=Appearance, y=LastFM_Endurement, fill=Appearance)) +
+  geom_violin() +
+  stat_summary(fun=mean, geom="point", shape=23, size=3, fill="white") +
+  stat_summary(fun=mean, geom="text", aes(label=sprintf("%.2f", after_stat(y))),
+               vjust=-0.5, hjust=-0.5, size=3, color="black") +
+  labs(title = "LastFM Endurement Distribution",
+       x = "Appearance",
+       y = "LastFM Endurement") +
+  theme_minimal() +
+  # Adjust the font size for the title and the axes
+  theme(
+    axis.text = element_text(size = 8),     
+    axis.title = element_text(size = 8),    
+    plot.title = element_text(size = 12),
+    legend.position = "none"
+    ) +
+  # Manually set colors
+  scale_fill_manual(values = manual_colors)
+
+endurement_distribution_spotify <- ggplot(endurement_score_data, aes(x=Appearance, y=Spotify_Endurement, fill=Appearance)) +
+  geom_violin() +
+  stat_summary(fun=mean, geom="point", shape=23, size=3, fill="white") +
+  stat_summary(fun=mean, geom="text", aes(label=sprintf("%.2f", after_stat(y))),
+               vjust=-0.5, hjust=-0.5, size=3, color="black") +
+  labs(title = "Spotify Endurement Distribution",
+       x = "Appearance",
+       y = "Spotify Endurement") +
+  theme_minimal() +
+  # Adjust the font size for the title and the axes
+  theme(
+    axis.text = element_text(size = 8),     
+    axis.title = element_text(size = 8),    
+    plot.title = element_text(size = 12),
+    legend.position = "none"
+    ) +
+  # Manually set colors
+  scale_fill_manual(values = manual_colors)
+
+combined_endurement_distribution <- plot_grid(
+  endurement_distribution_spotify + theme(legend.position = "none"),
+  endurement_distribution_fm + theme(legend.position = "none"),
+  ncol = 2, nrow = 1, align = "v", rel_widths = c(1, 1)
+)
+
+# Display the combined plot
+combined_endurement_distribution
+```
 
 
 
 
+Not the intersections:
 
-More precisely, we will compare the distributions of these four variables between the RS-T100 and (A) the most streamed artists on Spotify and (B) the most streamed artists on Last FM.
+Venn diagramm with the three samples
+
+
+
 
 AND THEN INTERSECTIONS????
 
