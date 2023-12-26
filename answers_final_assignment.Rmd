@@ -848,32 +848,36 @@ certified_singles <- certified_singles_data
 
 
 certified_albums <- certified_albums %>%
-  rename(Artist_Name = Name) %>%
+  rename(Artist_Name = Name,
+         Million_Units = `Units(millions)`) %>%
   mutate(Spotify_Artist_ID = ifelse(Artist_Name %in% top_hundred_artists$Artist_Name, 
                             top_hundred_artists$Spotify_Artist_ID[match(Artist_Name, top_hundred_artists$Artist_Name)], 
                             NA)) %>%
   mutate(Top_Hundred = ifelse(!is.na(Spotify_Artist_ID), 1, 0))
 
 certified_singles <- certified_singles %>%
-  rename(Artist_Name = Name) %>%
+  rename(Artist_Name = Name,
+         Million_Units = `Units(millions)`) %>%
   mutate(Spotify_Artist_ID = ifelse(Artist_Name %in% top_hundred_artists$Artist_Name, 
                                     top_hundred_artists$Spotify_Artist_ID[match(Artist_Name, top_hundred_artists$Artist_Name)], 
                                     NA)) %>%
   mutate(Top_Hundred = ifelse(!is.na(Spotify_Artist_ID), 1, 0))
 
 
-# Write certified_singles and certified_singles to the relational database
-dbWriteTable(db, "certified_albums_df", certified_albums, overwrite = TRUE)
-dbWriteTable(db, "certified_singles_df", certified_singles, overwrite = TRUE)
+# Get all artist IDs
+certified_albums$Spotify_Artist_ID <- sapply(certified_albums$Artist_Name, get_artist_id)
+certified_singles$Spotify_Artist_ID <- sapply(certified_singles$Artist_Name, get_artist_id)
+
+# Get Spotify Popularity and Followers
+result <- lapply(certified_albums$Spotify_Artist_ID, get_artist_info)
+certified_albums$Followers <- sapply(result, function(x) x$followers)
+certified_albums$Popularity <- sapply(result, function(x) x$popularity)
+
+result <- lapply(certified_singles$Spotify_Artist_ID, get_artist_info)
+certified_singles$Followers <- sapply(result, function(x) x$followers)
+certified_singles$Popularity <- sapply(result, function(x) x$popularity)
 ```
 
-
-```{r call check_table on "certified_albums_df" and "certified_singles_df"}
-
-# Call check_table on "certified_albums_df" and "certified_singles_df"
-check_table(db, "certified_albums_df")
-check_table(db, "certified_singles_df")
-```
 
 ### 2D. LastFM API Data (Tables 8-10)
 
@@ -1214,6 +1218,86 @@ dbWriteTable(db, "charts_artists_df", charts_artists_data, overwrite = TRUE)
 
 # Call check_table on "charts_artists_df"
 check_table(db, "charts_artists_df")
+```
+
+
+```{r add fm variables to riaa album and single certification data, eval=FALSE}
+
+# Add variables to the RIAA album and single certification data
+
+# Certified Albums
+# Create an empty dataframe
+artists_fm_data <- data.frame(
+  Artist_Name = character(0),
+  Playcount = numeric(0),
+  Listeners = numeric(0),
+  On_Tour = numeric(0),
+  stringsAsFactors = FALSE
+)
+
+result_list <- lapply(certified_albums$Artist_Name, get_artist_info_fm)
+artists_fm_data <- do.call(rbind, result_list)
+
+# Format the data
+artists_fm_data <- artists_fm_data %>%
+  mutate(Spotify_Artist_ID = ifelse(Artist_Name %in% certified_albums$Artist_Name,
+                                    certified_albums$Spotify_Artist_ID[match(Artist_Name, certified_albums$Artist_Name)], 
+                                    NA),
+         Playcount = as.numeric(Playcount),
+         Listeners = as.numeric(Listeners)
+         ) 
+
+# Add the newly retrieved variables "Playcount", "Listeners" and "On_Tour" to certified_albums
+certified_albums$Listeners_LastFM <- ifelse(certified_albums$Spotify_Artist_ID %in%artists_fm_data$Spotify_Artist_ID, 
+                                               artists_fm_data$Listeners[match(certified_albums$Spotify_Artist_ID, artists_fm_data$Spotify_Artist_ID)], 
+                                               NA)
+
+certified_albums$Playcount_LastFM <- ifelse(certified_albums$Spotify_Artist_ID %in%artists_fm_data$Spotify_Artist_ID, 
+                                               artists_fm_data$Playcount[match(certified_albums$Spotify_Artist_ID, artists_fm_data$Spotify_Artist_ID)], 
+                                               NA)
+
+# Certified Singles
+# Create an empty dataframe
+artists_fm_data <- data.frame(
+  Artist_Name = character(0),
+  Playcount = numeric(0),
+  Listeners = numeric(0),
+  On_Tour = numeric(0),
+  stringsAsFactors = FALSE
+)
+
+result_list <- lapply(certified_singles$Artist_Name, get_artist_info_fm)
+artists_fm_data <- do.call(rbind, result_list)
+
+# Format the data
+artists_fm_data <- artists_fm_data %>%
+  mutate(Spotify_Artist_ID = ifelse(Artist_Name %in% certified_singles$Artist_Name,
+                                    certified_singles$Spotify_Artist_ID[match(Artist_Name, certified_singles$Artist_Name)], 
+                                    NA),
+         Playcount = as.numeric(Playcount),
+         Listeners = as.numeric(Listeners)
+         ) 
+
+# Add the newly retrieved variables "Playcount", "Listeners" and "On_Tour" to certified_singles
+certified_singles$Listeners_LastFM <- ifelse(certified_singles$Spotify_Artist_ID %in%artists_fm_data$Spotify_Artist_ID, 
+                                               artists_fm_data$Listeners[match(certified_singles$Spotify_Artist_ID, artists_fm_data$Spotify_Artist_ID)], 
+                                               NA)
+
+certified_singles$Playcount_LastFM <- ifelse(certified_singles$Spotify_Artist_ID %in%artists_fm_data$Spotify_Artist_ID, 
+                                               artists_fm_data$Playcount[match(certified_singles$Spotify_Artist_ID, artists_fm_data$Spotify_Artist_ID)], 
+                                               NA)
+
+# Write certified_singles and certified_singles to the relational database
+dbWriteTable(db, "certified_albums_df", certified_albums, overwrite = TRUE)
+dbWriteTable(db, "certified_singles_df", certified_singles, overwrite = TRUE)
+```
+
+
+```{r call check_table on "certified_albums_df" and "certified_singles_df"}
+
+# Call check_table on "certified_albums_df" and "certified_singles_df"
+check_table(db, "certified_albums_df")
+check_table(db, "certified_singles_df") 
 ```
 
 
@@ -1627,17 +1711,115 @@ latest_album_release_plot
 
 Riaa Ranked, RS T100, Both
 
-```{r plot riaa certifications vs endurance}
+```{r data for riaa certifications vs endurance plot, eval=FALSE}
 
+# Plot B: RIAA Certifications
 certifications_query_riaa <-  "
-  SELECT Spotify_Artist_ID, Followers, Popularity, Listeners AS Listeners_LastFM, Playcount AS Playcount_LastFM
-  FROM charts_artists_df 
+  SELECT Spotify_Artist_ID, Million_Units, Top_Hundred, Followers, Popularity, Listeners_LastFM, Playcount_LastFM
+  FROM certified_albums_df 
   ;
 " 
+# Execute the query
+riaa_certifications_result <- dbGetQuery(db, certifications_query_riaa)
 
+# Calculate endurance
+riaa_certifications_result <- riaa_certifications_result %>%
+  mutate(Followers = ifelse(is.na(Followers), 1, Followers),
+         Popularity = ifelse(is.na(Followers), 1, Popularity),
+         Listeners_LastFM = ifelse(is.na(Listeners_LastFM), 1, Listeners_LastFM),
+         Playcount_LastFM = ifelse(is.na(Playcount_LastFM), 1, Playcount_LastFM),
+         Spotify_Endurance = as.numeric(Followers) * as.numeric(Popularity),
+         LastFM_Endurance = as.numeric(Listeners_LastFM) * as.numeric(Playcount_LastFM))
 
+riaa_certifications_result <- riaa_certifications_result %>%
+  mutate(Spotify_Endurance = Spotify_Endurance/ts_spotify_endurance * 100,
+         LastFM_Endurance = LastFM_Endurance/ts_lastfm_endurance * 100)
+
+riaa_certifications_result <- riaa_certifications_result %>%
+  mutate(LastFM_Endurance = as.numeric(format(LastFM_Endurance, scientific = FALSE)))
+
+# Save the data frame as a global variable
+assign("riaa_certifications_result", riaa_certifications_result, envir = .GlobalEnv)
+
+# Save the data frame as an RData file in the current working directory
+save(riaa_certifications_result, file = "data/riaa_certifications_result.RData")
 ```
 
+```{r plot riaa units vs. spotify endurance, fig.width=10, fig.height=4, message=FALSE}
+
+# Load the data from the RData file
+load("data/riaa_certifications_result.RData")
+
+# Make a copy of the data frame
+riaa_certifications_data <- data.frame(riaa_certifications_result)
+
+manual_colors <- c("1" = "#F8766D", 
+                   "0" = "#F564E3")
+
+# Plot the endurance scores (on a scale of 1 to Taylor Swift)
+riaa_albums_plot_spotify <- ggplot(riaa_certifications_data,
+                          aes(x = Million_Units, y = Spotify_Endurance, color = factor(Top_Hundred))) +
+  geom_point(size = 1) +
+  # Add a regression line
+  stat_smooth(method = "lm", se = TRUE, color = "#00BF7D", alpha = 0.3) +
+  #geom_point(aes(x = 100, y = 100), color = "#00BA38", size = 3, fill = "#00BA38", shape = 23) +
+  # Add labels
+  #geom_text(aes(x = 100, y = 100, label = "Taylor Swift"), vjust = 2, hjust = 1, size = 3, family = "Arial", color = "#00BA38") +
+  # Add titles
+  labs(title = "RIAA Units vs. Spotify Endurance",
+       x = "RIAA Units (millions)",
+       y = "Spotify Endurance",
+       color = "RS Top 100"
+       ) +
+  theme_minimal() +
+  # Adjust the font size for the title and the axes
+  theme(
+    axis.text = element_text(size = 8),     
+    axis.title = element_text(size = 8),    
+    plot.title = element_text(size = 12)
+    ) +
+  # Manually set colors
+  scale_color_manual(values = manual_colors)
+
+riaa_albums_plot_fm <- ggplot(riaa_certifications_data,
+                          aes(x = Million_Units, y = LastFM_Endurance, color = factor(Top_Hundred))) +
+  geom_point(size = 1) +
+  # Add a regression line
+  stat_smooth(method = "lm", se = TRUE, color = "#00BF7D", alpha = 0.3) +
+  # Add titles
+  labs(title = "RIAA Units vs. LastFM Endurance",
+       x = "RIAA Units (millions)",
+       y = "LastFM Endurance",
+       color = "RS Top 100"
+       ) +
+  theme_minimal() +
+  # Adjust the font size for the title and the axes
+  theme(
+    axis.text = element_text(size = 8),     
+    axis.title = element_text(size = 8),    
+    plot.title = element_text(size = 12)
+    ) +
+  # Manually set colors
+  scale_color_manual(values = manual_colors)
+
+# Arrange the two plots next to each other
+riaa_albums_plot <- plot_grid(riaa_albums_plot_spotify, riaa_albums_plot_fm, ncol = 1, nrow=2)
+
+# Display the plot
+riaa_albums_plot
+```
+
+It seems to not be correlated. But: is the rs t100 rank related to that?
+Or at least can we say that there is a large intersection?
+
+
+```{r display the venn diagram for riaa and RS, echo=FALSE,out.width="45%", out.height="45%",fig.cap="Intersection of Rolling Stones Top 100, Spotify Top 50, LastFM Top 50",fig.show='hold',fig.align='center'}
+
+# Display the venn diagrams
+img2 <- knitr::include_graphics("venn_diagramm_riaa_albums.png")
+
+knitr::include_graphics(img2)
+```
 
 #### iii. On Tour
 
