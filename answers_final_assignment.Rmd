@@ -988,16 +988,51 @@ result <- lapply(charts_artists_data$Spotify_Artist_ID, get_artist_info)
 charts_artists_data$Followers <- sapply(result, function(x) x$followers)
 charts_artists_data$Popularity <- sapply(result, function(x) x$popularity)
 
-# Write charts_artists_data and charts_tracks_data to the relational database
-dbWriteTable(db, "charts_artists_df", charts_artists_data, overwrite = TRUE)
+
+# Get the Latest_Album_Release for charts_artists_data
+album_data <- data.frame(
+  Spotify_Artist_ID = character(0),
+  Artist_Name = character(0),
+  Spotify_Album_ID = character(0),
+  Album_Name = character(0),
+  Album_Release_Date = character(0),
+  Number_of_Tracks = numeric(0),
+  stringsAsFactors = FALSE
+)
+
+result_list <- lapply(charts_artists_data$Spotify_Artist_ID, get_albums)
+album_data <- do.call(rbind, result_list)
+
+
+album_data <- album_data %>%
+  mutate(
+    is_full_date = grepl("\\d{4}-\\d{2}-\\d{2}", Album_Release_Date),
+    Album_Release_Date = case_when(
+      is_full_date ~ as.Date(Album_Release_Date, format = "%Y-%m-%d"),
+      TRUE ~ as.Date(paste0(Album_Release_Date, "-01-01"), format = "%Y-%m-%d")
+    )
+  )
+
+# Remove the temporary column
+album_data$is_full_date <- NULL
+
+# Group by Artist_ID and find the latest album release date
+Latest_Album_Release <- album_data %>%
+  group_by(Spotify_Artist_ID) %>%
+  summarize(Latest_Album_Release = max(Album_Release_Date, na.rm = TRUE))
+
+# Merge the result back into top_artists_2023
+charts_artists_data <- merge(charts_artists_data, Latest_Album_Release, by = "Spotify_Artist_ID", all.x = TRUE)
+charts_artists_data$Latest_Album_Release <- as.character(charts_artists_data$Latest_Album_Release)
+
+# Write charts_tracks_data to the relational database
 dbWriteTable(db, "charts_tracks_df", charts_tracks_data, overwrite = TRUE)
 ```
 
 
-```{r call check_table on "charts_artists_df" and "charts_tracks_df"}
+```{r call check_table on "charts_tracks_df"}
 
-# Call check_table on "charts_artists_df" and "charts_tracks_df"
-check_table(db, "charts_artists_df")
+# Call check_table on "charts_tracks_df"
 check_table(db, "charts_tracks_df")
 ```
 
@@ -1149,6 +1184,38 @@ dbWriteTable(db, "top_artists_2023_USA_df", top_artists_2023, overwrite = TRUE)
 check_table(db, "top_artists_2023_USA_df")
 ```
 
+```{r retrieve On_Tour variable for the charts_artists_data, eval=FALSE}
+
+# Get the On_Tour variable for the charts_artists_data
+
+# Create an empty dataframe
+artists_fm_data <- data.frame(
+  Artist_Name = character(0),
+  Playcount = numeric(0),
+  Listeners = numeric(0),
+  On_Tour = numeric(0),
+  stringsAsFactors = FALSE
+)
+
+result_list <- lapply(charts_artists_data$Artist_Name, get_artist_info_fm)
+artists_fm_data <- do.call(rbind, result_list)
+
+# Add the newly retrieved variable "On_Tour" to charts_artists_data
+charts_artists_data$On_Tour <- ifelse(charts_artists_data$Artist_Name %in%artists_fm_data$Artist_Name,
+                                      artists_fm_data$On_Tour[match(charts_artists_data$Artist_Name, artists_fm_data$Artist_Name)], 
+                                      NA)
+
+# Write charts_artists_data to the relational database
+dbWriteTable(db, "charts_artists_df", charts_artists_data, overwrite = TRUE)
+```
+
+
+```{r call check_table on "charts_artists_df"}
+
+# Call check_table on "charts_artists_df"
+check_table(db, "charts_artists_df")
+```
+
 
 ```{r Last FM top tracks for RS-T100, eval=FALSE}
 
@@ -1259,24 +1326,21 @@ endurance_score_query_spotify <-  "
   ;
 "
 
-endurement_score_query_fm <-  "
-  SELECT Spotify_Artist_ID, Followers, Popularity, Listeners AS Listeners_LastFM, Playcount AS Playcount_LastFM
+endurance_score_query_fm <-  "
+  SELECT Spotify_Artist_ID, Followers, Popularity, Listeners AS Listeners_LastFM, Playcount AS Playcount_LastFM, Latest_Album_Release, On_Tour
   FROM charts_artists_df 
   ;
 "
 
 # Execute the queries
-endurance_score_result_rs100 <- dbGetQuery(db, endurement_score_query_rs100)
-endurance_score_result_spotify <- dbGetQuery(db, endurement_score_query_spotify)
-endurance_score_result_fm <- dbGetQuery(db, endurement_score_query_fm)
+endurance_score_result_rs100 <- dbGetQuery(db, endurance_score_query_rs100)
+endurance_score_result_spotify <- dbGetQuery(db, endurance_score_query_spotify)
+endurance_score_result_fm <- dbGetQuery(db, endurance_score_query_fm)
 
 # Add indicators and bind the data frames
 endurance_score_result_rs100$Appearance <- "Rolling Stones Top 100"
 endurance_score_result_spotify$Appearance <- "Spotify Top 100 2023"
 endurance_score_result_fm$Appearance <- "Last FM Artist Charts"
-
-endurance_score_result_fm$Latest_Album_Release <- NA
-endurance_score_result_fm$On_Tour <- NA
 
 endurance_score_result <- rbind(endurance_score_result_rs100, endurance_score_result_spotify, endurance_score_result_fm)
 
@@ -1466,7 +1530,7 @@ Three potential reasons:
 
 #### i. Latest Album Release vs. Endurance
 
-```{r latest album release vs. endurance, fig.width=10, fig.height=4}
+```{r latest album release vs. endurance, fig.width=10, fig.height=4, message=FALSE}
 
 # Plot: Latest album release dates vs. endurance
 
@@ -1484,6 +1548,11 @@ mean_endurance_spotify <- endurance_score_data %>%
   summarize(mean_column = mean(Spotify_Endurance, na.rm = TRUE)) %>%
   pull(mean_column)
 
+mean_endurance_fm <- endurance_score_data %>%
+  filter(Appearance == "LastFM Top 50") %>%
+  summarize(mean_column = mean(Spotify_Endurance, na.rm = TRUE)) %>%
+  pull(mean_column)
+
 mean_album_release_rs <- endurance_score_data %>%
   filter(Appearance == "RS Top 100") %>%
   summarize(mean_column = mean(Latest_Album_Release, na.rm = TRUE)) %>%
@@ -1494,19 +1563,28 @@ mean_album_release_spotify <- endurance_score_data %>%
   summarize(mean_column = mean(Latest_Album_Release, na.rm = TRUE)) %>%
   pull(mean_column)
 
+mean_album_release_fm <- endurance_score_data %>%
+  filter(Appearance == "LastFM Top 50") %>%
+  summarize(mean_column = mean(Latest_Album_Release, na.rm = TRUE)) %>%
+  pull(mean_column)
+
 # Plot C: On Tour vs. Endurance
-latest_album_release_plot <- ggplot(endurance_score_data, 
-                                aes(x = Latest_Album_Release, y = Spotify_Endurance, color = Appearance)) +
+latest_album_release_plot_means <- ggplot(endurance_score_data,
+                                          aes(x = Latest_Album_Release, y = Spotify_Endurance, color = Appearance)) +
   geom_point(size = 1) +
   # Add means
   geom_point(aes(x = mean_album_release_rs, y = mean_endurance_rs), color = "#F8766D", size = 3, fill = "#F8766D", shape = 23) +
   geom_point(aes(x = mean_album_release_spotify, y = mean_endurance_spotify), color = "#00BFC4", size = 3, fill = "#00BFC4", shape = 23) +
+  geom_point(aes(x = mean_album_release_fm, y = mean_endurance_fm), color = "#EBAC23", size = 3, fill = "#EBAC23", shape = 23) +
+  # Add dotted lines
   geom_vline(xintercept = mean_album_release_rs, linetype = "dotted", color = "#F8766D") +
   geom_hline(yintercept = mean_endurance_rs, linetype = "dotted", color = "#F8766D") +
   geom_vline(xintercept = mean_album_release_spotify, linetype = "dotted", color = "#00BFC4") +
   geom_hline(yintercept = mean_endurance_spotify, linetype = "dotted", color = "#00BFC4") +
+    geom_vline(xintercept = mean_album_release_fm, linetype = "dotted", color = "#EBAC23") +
+  geom_hline(yintercept = mean_endurance_fm, linetype = "dotted", color = "#EBAC23") +
   # Add titles
-  labs(title = "Latest Album Release Date vs. Spotify Endurance",
+  labs(title = "Latest Album Release Date vs. Spotify Endurance, by Appearance",
        x = "Latest Album Release Date",
        y = "Spotify Endurance",
        color = "Ranking Appearance") +
@@ -1520,6 +1598,28 @@ latest_album_release_plot <- ggplot(endurance_score_data,
   # Manually set colors for Artist_Type
   scale_color_manual(values = manual_colors)
 
+latest_album_release_plot_reg <- ggplot(endurance_score_data, 
+                                        aes(x = Latest_Album_Release, y = Spotify_Endurance)) +
+  geom_point(aes(color = "Actual Data"), size = 1) +
+  # Add a regression line
+  stat_smooth(method = "lm", se = TRUE, aes(color = "Regression Line"), show.legend = TRUE, alpha = 0.3) +
+  # Add titles and legend
+  labs(title = "Latest Album Release Date vs. Spotify Endurance, with Regression",
+       x = "Latest Album Release Date",
+       y = "Spotify Endurance") +
+  theme_minimal() +
+  # Adjust the font size for the title and the axes
+  theme(
+    axis.text = element_text(size = 8),     
+    axis.title = element_text(size = 8),    
+    plot.title = element_text(size = 12)
+  ) +
+  scale_color_manual(values = c("Actual Data" = "black", "Regression Line" = "#00BF7D"), name="Colour")
+
+# Arrange the two plots next to each other
+latest_album_release_plot <- plot_grid(latest_album_release_plot_means, latest_album_release_plot_reg, ncol = 1, nrow=2)
+
+# Display the plot
 latest_album_release_plot
 ```
 
@@ -1539,39 +1639,22 @@ certifications_query_riaa <-  "
 ```
 
 
-##### iii. On Tour
+#### iii. On Tour
 
-```{r}
+```{r plot On_Tour vs. Endurance, fig.width=10, fig.height=4}
 
 # Plot C: On Tour vs. Endurance
-tour_plot <- ggplot(endurance_score_data, 
-                                aes(x = Spotify_Endurance, y = LastFM_Endurance, color = Appearance, shape=On_Tour)) +
-  geom_point(size = 1) +
-  # Add titles
-  labs(title = "Latest Album Release Date vs. Spotify Endurance",
-       x = "Spotify Endurance",
-       y = "LastFM Endurance",
-       color = "Ranking Appearance",
-       shape = "On Tour") +
-  theme_minimal() +
-  # Adjust the font size for the title and the axes
-  theme(
-    axis.text = element_text(size = 8),     
-    axis.title = element_text(size = 8),    
-    plot.title = element_text(size = 12)
-  ) +
-  # Manually set colors for Artist_Type
-  scale_color_manual(values = manual_colors)
 
 manual_colors <- c("RS Top 100" = "#F8766D", 
                    "Spotify Top 50" = "#00BFC4",
                    "LastFM Top 50" = "#EBAC23")
 
 # Plot C: On Tour vs. Endurance
-tour_plot <- ggplot(endurance_score_data, aes(fill=Appearance, y=LastFM_Endurance, x=On_Tour)) + 
+
+tour_plot_fm_endurance <- ggplot(endurance_score_data, aes(fill=Appearance, y=LastFM_Endurance, x=On_Tour)) + 
   geom_bar(position="dodge", stat = "summary", fun = "mean") +
   # Add titles
-  labs(title = "Latest Album Release Date vs. Spotify Endurance",
+  labs(title = "Latest Album Release Date vs. LastFM Endurance",
        x = "On Tour",
        y = "Average LastFM Endurance",
        color = "Ranking Appearance",
@@ -1583,8 +1666,31 @@ tour_plot <- ggplot(endurance_score_data, aes(fill=Appearance, y=LastFM_Enduranc
     axis.title = element_text(size = 8),    
     plot.title = element_text(size = 12)
   ) + 
-  scale_fill_manual(values = manual_colors)
+  scale_fill_manual(values = manual_colors) +
+  scale_x_discrete(labels = c("No", "Yes"))
 
+tour_plot_spotify_endurance <- ggplot(endurance_score_data, aes(fill=Appearance, y=Spotify_Endurance, x=On_Tour)) + 
+  geom_bar(position="dodge", stat = "summary", fun = "mean") +
+  # Add titles
+  labs(title = "Latest Album Release Date vs. Spotify Endurance",
+       x = "On Tour",
+       y = "Average Spotify Endurance",
+       color = "Ranking Appearance",
+       shape = "On Tour") +
+  theme_minimal() +
+  # Adjust the font size for the title and the axes
+  theme(
+    axis.text = element_text(size = 8),     
+    axis.title = element_text(size = 8),    
+    plot.title = element_text(size = 12)
+  ) + 
+  scale_fill_manual(values = manual_colors) +
+  scale_x_discrete(labels = c("No", "Yes"))
+
+# Arrange the two plots next to each other
+tour_plot <- plot_grid(tour_plot_spotify_endurance, tour_plot_fm_endurance, ncol = 2, nrow=1)
+
+# Display the plot
 tour_plot
 ```
 
