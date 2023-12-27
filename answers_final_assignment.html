@@ -440,21 +440,36 @@ schauen, welche grafiken es wirklich braucht</p>
 <h2>2. Data</h2>
 <div id="a.-rolling-stones-data-table-1" class="section level3">
 <h3>2A. Rolling Stones Data (Table 1)</h3>
+<p>Table 1: top_hundred_artists_df - Artist_Name - Ranking -
+Article_Text</p>
 </div>
 <div id="b.-spotify-api-data-tables-1---5" class="section level3">
 <h3>2B. Spotify API Data (Tables 1 - 5)</h3>
-<pre><code>## The table top_tracks_df exists and has the following dimensions: 
-## Number of rows: 1000 
-## Number of columns: 8
-## Column names: Spotify_Artist_ID, Artist_Name, Spotify_Track_ID, Track_Name, Track_Popularity, Track_Duration, Album_Release_Date, Collaboration</code></pre>
-<p>Getting the playlists: Improve the code so that one set of functions
-can be used for any playlist</p>
-<pre><code>## The table top_tracks_2023_USA_df exists and has the following dimensions: 
-## Number of rows: 50 
-## Number of columns: 10
-## Column names: Playlist_Name, Playlist_ID, Playlist_Description, Track_Name, Artist_Name, Spotify_Track_ID, Track_Duration, Track_Popularity, Album_Release_Date, Spotify_Artist_ID</code></pre>
+<p>Table 1: top_hundred_artists_df</p>
+<ul>
+<li>Spotify_Artist_ID</li>
+<li>Followers</li>
+<li>Genres</li>
+<li>Popularity</li>
+<li>Latest_Album_Release</li>
+</ul>
 <p>Explain why you only look at the US (link to the US-centrism of the
 Rolling Stones ranking)</p>
+<p>Table 2: top_artists_2023_USA_df</p>
+<ul>
+<li>Artist_Name</li>
+<li>Spotify_Artist_ID</li>
+<li>Followers</li>
+<li>Popularity</li>
+<li>Latest_Album_Release</li>
+</ul>
+<p>Table 3: top_groups_2023_df</p>
+<ul>
+<li>Artist_Name</li>
+<li>Spotify_Artist_ID</li>
+<li>Followers</li>
+<li>Popularity</li>
+</ul>
 <pre><code>## The table top_groups_2023_df exists and has the following dimensions: 
 ## Number of rows: 50 
 ## Number of columns: 4
@@ -466,25 +481,74 @@ Rolling Stones ranking)</p>
 Therefore, I used wikipedia as a source to scrape information on album
 awards. Be aware, that the wikipedia data might not reflect the actual
 data on RIAA perfectly.</p>
+<p>Potentially get rid of certified_singles_df?</p>
+<p>Table 5: certified_albums_df</p>
+<ul>
+<li>Rank</li>
+<li>Million_Units</li>
+<li>Artist_Name</li>
+<li>Nat.</li>
+<li>Active</li>
+<li>Spotify_Artist_ID</li>
+<li>Top_Hundred</li>
+<li>Followers</li>
+<li>Popularity</li>
+</ul>
+<p>Table 6: certified_singles_df - Rank - Million_Units - Artist_Name -
+Nat. - Active - Spotify_Artist_ID - Top_Hundred - Followers -
+Popularity</p>
 </div>
 <div id="d.-lastfm-api-data-tables-8-10" class="section level3">
 <h3>2D. LastFM API Data (Tables 8-10)</h3>
-<pre><code>## The table charts_tracks_df exists and has the following dimensions: 
-## Number of rows: 50 
-## Number of columns: 5
-## Column names: Artist_Name, Playcount, Listeners, Spotify_Artist_ID, Top_Hundred</code></pre>
+<p>Table 4: charts_artists_df</p>
+<ul>
+<li>Artist_Name</li>
+<li>Playcount</li>
+<li>Listeners</li>
+<li>Spotify_Artist_ID</li>
+<li>Top_Hundred</li>
+<li>Followers</li>
+<li>Popularity</li>
+<li>Latest_Album_Release</li>
+</ul>
+<p>Table 1: top_hundred_artists_df</p>
+<ul>
+<li>Playcount_LastFM</li>
+<li>Listeners_LastFM</li>
+<li>On_Tour</li>
+</ul>
 <pre><code>## The table top_hundred_artists_df exists and has the following dimensions: 
 ## Number of rows: 100 
 ## Number of columns: 11
 ## Column names: Spotify_Artist_ID, Artist_Name, Ranking, Article_Text, Followers, Genres, Popularity, Latest_Album_Release, Listeners_LastFM, Playcount_LastFM, On_Tour</code></pre>
+<p>Table 2: top_artists_2023_USA_df</p>
+<ul>
+<li>Listeners_LastFM</li>
+<li>Playcount_LastFM</li>
+<li>On_Tour</li>
+</ul>
 <pre><code>## The table top_artists_2023_USA_df exists and has the following dimensions: 
 ## Number of rows: 50 
 ## Number of columns: 8
 ## Column names: Spotify_Artist_ID, Artist_Name, Followers, Popularity, Latest_Album_Release, Listeners_LastFM, Playcount_LastFM, On_Tour</code></pre>
+<p>Table 4: charts_artists_df</p>
+<ul>
+<li>On_Tour</li>
+</ul>
 <pre><code>## The table charts_artists_df exists and has the following dimensions: 
 ## Number of rows: 50 
 ## Number of columns: 9
 ## Column names: Spotify_Artist_ID, Artist_Name, Playcount, Listeners, Top_Hundred, Followers, Popularity, On_Tour, Latest_Album_Release</code></pre>
+<p>Table 5: certified_albums_df</p>
+<ul>
+<li>Listeners_LastFM</li>
+<li>Playcount_LastFM</li>
+</ul>
+<p>Table 6: certified_singles_df</p>
+<ul>
+<li>Listeners_LastFM</li>
+<li>Playcount_LastFM</li>
+</ul>
 <pre><code>## The table certified_albums_df exists and has the following dimensions: 
 ## Number of rows: 102 
 ## Number of columns: 11
@@ -493,10 +557,6 @@ data on RIAA perfectly.</p>
 ## Number of rows: 50 
 ## Number of columns: 11
 ## Column names: Rank, Million_Units, Artist_Name, Nat., Active, Spotify_Artist_ID, Top_Hundred, Followers, Popularity, Listeners_LastFM, Playcount_LastFM</code></pre>
-<pre><code>## The table top_tracks_fm_df exists and has the following dimensions: 
-## Number of rows: 100 
-## Number of columns: 5
-## Column names: Artist_Name, Track_Name, Track_Playcount, Track_Listeners, Spotify_Artist_ID</code></pre>
 </div>
 </div>
 <div id="analysis" class="section level2">
@@ -980,101 +1040,7 @@ top_hundred_artists &lt;- merge(top_hundred_artists, Latest_Album_Release, by = 
 
 top_hundred_artists$Latest_Album_Release &lt;- as.character(top_hundred_artists$Latest_Album_Release)
 
-# 4) Get the artist top tracks
-
-# Create an empty data frame for the top tracks
-top_tracks_data &lt;- data.frame(
-  Spotify_Artist_ID = character(0),
-  Artist_Name = character(0),
-  Spotify_Track_ID = character(0),
-  Track_Name = character(0),
-  Track_Popularity = numeric(0),
-  Track_Duration = numeric(0),
-  Album_Release_Date = character(0),
-  stringsAsFactors = FALSE
-)
-
-# Function that queries the API for each artist&#39;s top track data given their ID
-get_track_data &lt;- function(the_artist_id, market=&quot;US&quot;) {
-  # Define the Spotify API endpoint for getting an artist&#39;s top tracks
-  top_tracks_url &lt;- paste0(&#39;https://api.spotify.com/v1/artists/&#39;, the_artist_id, &#39;/top-tracks?market=&#39;, market)
-  
-  # Set up the request with the access token
-  top_tracks_response &lt;- GET(
-    top_tracks_url,
-    add_headers(Authorization = paste0(&#39;Bearer &#39;, access_token))
-  )
-  
-  # Extract the top tracks from the response
-  top_tracks &lt;- content(top_tracks_response, &quot;parsed&quot;)
-  
-  return(top_tracks)
-}
-
-# Function that gets further info on the top tracks given the artist ID and using the function get_track_data
-get_top_tracks &lt;- function(the_artist_id) {
-  
-  # Get the data given the artist ID
-  top_tracks &lt;- get_track_data(the_artist_id)
-  
-  # Loop through the top tracks for each artist
-  if (!is.null(top_tracks$tracks) &amp;&amp; length(top_tracks$tracks) &gt; 0) {
-    # Enter the loop
-    for (i in seq(length(top_tracks$tracks))) {
-      # Calculate Collaboration value for each song
-      collaboration_value &lt;- ifelse(length(top_tracks$tracks[[i]]$artists) &gt; 1, 1, 0)
-      
-      # Check and extract values, appending NA if a value is missing
-      top_tracks_data &lt;- rbind(top_tracks_data, data.frame(
-        Spotify_Artist_ID = ifelse(!is.null(top_tracks$tracks[[i]]$artists[[1]]$id), the_artist_id, NA),
-        Artist_Name = ifelse(!is.null(top_tracks$tracks[[i]]$artists[[1]]$name), top_tracks$tracks[[i]]$artists[[1]]$name, NA),
-        Spotify_Track_ID = ifelse(!is.null(top_tracks$tracks[[i]]$id), top_tracks$tracks[[i]]$id, NA),
-        Track_Name = ifelse(!is.null(top_tracks$tracks[[i]]$name), top_tracks$tracks[[i]]$name, NA),
-        Track_Popularity = ifelse(!is.null(top_tracks$tracks[[i]]$popularity), top_tracks$tracks[[i]]$popularity, NA),
-        Track_Duration = ifelse(!is.null(top_tracks$tracks[[i]]$duration_ms), top_tracks$tracks[[i]]$duration_ms, NA),
-        Album_Release_Date = ifelse(!is.null(top_tracks$tracks[[i]]$album$release_date), top_tracks$tracks[[i]]$album$release_date, NA),
-        Collaboration = collaboration_value
-      ))
-    }
-  } else {
-    top_tracks_data &lt;- rbind(top_tracks_data, data.frame(
-      Spotify_Artist_ID = the_artist_id,
-      Artist_Name = NA,
-      Spotify_Track_ID = NA,
-      Track_Name = NA,
-      Track_Popularity = NA,
-      Track_Duration = NA,
-      Album_Release_Date = NA,
-      Collaboration = NA
-    ))
-  }
-  
-  return(top_tracks_data)
-}
-
-result_list &lt;- lapply(top_hundred_artists$Spotify_Artist_ID, get_top_tracks)
-top_tracks_data &lt;- do.call(rbind, result_list)
-
-# Clean the top_tracks_data
-top_tracks_data &lt;- top_tracks_data %&gt;%
-  mutate(
-    is_full_date = grepl(&quot;\\d{4}-\\d{2}-\\d{2}&quot;, Album_Release_Date),
-    Album_Release_Date = case_when(
-      is_full_date ~ as.Date(Album_Release_Date, format = &quot;%Y-%m-%d&quot;),
-      TRUE ~ as.Date(paste0(Album_Release_Date, &quot;-01-01&quot;), format = &quot;%Y-%m-%d&quot;)
-    )
-  )
-
-# Remove the temporary column
-top_tracks_data$is_full_date &lt;- NULL
-
-# Write top_tracks_data to the relational database
-dbWriteTable(db, &quot;top_tracks_df&quot;, top_tracks_data, overwrite = TRUE)
-
-# Call check_table on &quot;top_tracks_df&quot;
-check_table(db, &quot;top_tracks_df&quot;)
-
-# 5) Get the Spotify playlist &quot;Top Tracks of 2023, USA&quot;
+# 3) Get the Spotify playlist &quot;Top Artists of 2023, USA&quot;
 
 # Get a playlist
 get_playlist &lt;- function(playlist_id){
@@ -1116,39 +1082,6 @@ get_playlist_info &lt;- function(playlist_id, a_dataframe) {
   # Return the resulting dataframe
   return(a_dataframe)
 }
-
-# Create an empty dataframe
-top_tracks_2023_USA &lt;- data.frame(
-  Playlist_Name = character(0),
-  Playlist_ID = character(0),
-  Playlist_Description = character(0),
-  Track_Name = character(0),
-  Artist_Name = character(0),
-  Spotify_Track_ID = character(0),
-  Track_Duration = numeric(0),
-  Track_Popularity = numeric(0),
-  Album_Release_Date = character(0),
-  stringsAsFactors = FALSE
-)
-
-# Execute the function
-top_tracks_2023_USA_id &lt;- &quot;37i9dQZF1DXbJMiQ53rTyJ&quot;
-top_tracks_2023_USA &lt;- get_playlist_info(top_tracks_2023_USA_id, top_tracks_2023_USA)
-
-# Get the artist ID for each artist on the top tracks 2023 playlist
-top_tracks_2023_USA$Spotify_Artist_ID &lt;- NA
-
-# Add the artist IDs
-top_tracks_2023_USA$Spotify_Artist_ID &lt;- lapply(top_tracks_2023_USA$Artist_Name, get_artist_id)
-top_tracks_2023_USA$Spotify_Artist_ID &lt;- as.character(top_tracks_2023_USA$Spotify_Artist_ID)
-
-# Write top_tracks_2023_USA to the relational database
-dbWriteTable(db, &quot;top_tracks_2023_USA_df&quot;, top_tracks_2023_USA, overwrite = TRUE)
-
-# Call check_table on &quot;top_tracks_2023_USA_df&quot;
-check_table(db, &quot;top_tracks_2023_USA_df&quot;)
-
-# 6) Get the Spotify playlist &quot;Top Artists of 2023, USA&quot;
 
 # Create an empty dataframe
 top_artists_2023_USA &lt;- data.frame(
@@ -1365,19 +1298,11 @@ get_charts &lt;- function(a_method){
   return(content)
 }
 
-# Define methods
+# Define the method
 method_artists = &quot;chart.getTopArtists&quot;
-method_tracks = &quot;chart.getTopTracks&quot;
 
-# Create empty dataframes
+# Create an empty data frame
 charts_artists_data &lt;- data.frame(
-  Artist_Name = character(0),
-  Playcount = numeric(0),
-  Listeners = numeric(0),
-  stringsAsFactors = FALSE
-)
-
-charts_tracks_data &lt;- data.frame(
   Artist_Name = character(0),
   Playcount = numeric(0),
   Listeners = numeric(0),
@@ -1402,27 +1327,7 @@ get_charts_info_artists &lt;- function(a_method, dt_frame) {
   return(dt_frame)
 }
 
-get_charts_info_tracks &lt;- function(a_method, dt_frame) {
-  
-  # Get the playlist data given the playlist id
-  dt &lt;- get_charts(a_method)
-  
-  # Loop to append values
-  for (i in seq(length(dt$tracks$track))) {
-    # Append the values to the dataframe
-    dt_frame &lt;- rbind(dt_frame, data.frame(Artist_Name = dt$tracks$track[[i]]$artist$name,
-                                           Playcount = dt$tracks$track[[i]]$playcount,
-                                           Listeners = dt$tracks$track[[i]]$listeners
-    ))
-  }
-  
-  # Return the resulting dataframe
-  return(dt_frame)
-}
-
 charts_artists_data &lt;- get_charts_info_artists(method_artists, charts_artists_data)
-charts_tracks_data &lt;- get_charts_info_tracks(method_tracks, charts_tracks_data)
-
 # Format the data
 charts_artists_data &lt;- charts_artists_data %&gt;%
   mutate(Spotify_Artist_ID = ifelse(Artist_Name %in% top_hundred_artists$Artist_Name, 
@@ -1433,15 +1338,6 @@ charts_artists_data &lt;- charts_artists_data %&gt;%
          Listeners = as.numeric(Listeners)
          ) 
 
-charts_tracks_data &lt;- charts_tracks_data %&gt;%
-  mutate(Spotify_Artist_ID = ifelse(Artist_Name %in% top_hundred_artists$Artist_Name, 
-                                    top_hundred_artists$Spotify_Artist_ID[match(Artist_Name, top_hundred_artists$Artist_Name)], 
-                                    NA),
-         Top_Hundred = ifelse(!is.na(Spotify_Artist_ID), 1, 0),
-         Playcount = as.numeric(Playcount),
-         Listeners = as.numeric(Listeners)
-  ) 
-
 # Add the Spotify_Artist_ID for every instance
 charts_artists_data$Spotify_Artist_ID &lt;- sapply(charts_artists_data$Artist_Name, get_artist_id)
 
@@ -1449,7 +1345,6 @@ charts_artists_data$Spotify_Artist_ID &lt;- sapply(charts_artists_data$Artist_Na
 result &lt;- lapply(charts_artists_data$Spotify_Artist_ID, get_artist_info)
 charts_artists_data$Followers &lt;- sapply(result, function(x) x$followers)
 charts_artists_data$Popularity &lt;- sapply(result, function(x) x$popularity)
-
 
 # Get the Latest_Album_Release for charts_artists_data
 album_data &lt;- data.frame(
@@ -1464,7 +1359,6 @@ album_data &lt;- data.frame(
 
 result_list &lt;- lapply(charts_artists_data$Spotify_Artist_ID, get_albums)
 album_data &lt;- do.call(rbind, result_list)
-
 
 album_data &lt;- album_data %&gt;%
   mutate(
@@ -1486,12 +1380,6 @@ Latest_Album_Release &lt;- album_data %&gt;%
 # Merge the result back into top_artists_2023
 charts_artists_data &lt;- merge(charts_artists_data, Latest_Album_Release, by = &quot;Spotify_Artist_ID&quot;, all.x = TRUE)
 charts_artists_data$Latest_Album_Release &lt;- as.character(charts_artists_data$Latest_Album_Release)
-
-# Write charts_tracks_data to the relational database
-dbWriteTable(db, &quot;charts_tracks_df&quot;, charts_tracks_data, overwrite = TRUE)
-
-# Call check_table on &quot;charts_tracks_df&quot;
-check_table(db, &quot;charts_tracks_df&quot;)
 
 # Table 10: Listeners and Playcount for RS-T100
 
@@ -1723,77 +1611,6 @@ dbWriteTable(db, &quot;certified_singles_df&quot;, certified_singles, overwrite 
 # Call check_table on &quot;certified_albums_df&quot; and &quot;certified_singles_df&quot;
 check_table(db, &quot;certified_albums_df&quot;)
 check_table(db, &quot;certified_singles_df&quot;) 
-
-# Table 11: Last FM top tracks for each artist
-
-# Create an empty dataframe
-top_tracks_fm_data &lt;- data.frame(
-  Artist_Name = character(0),
-  Track_Name = character(0),
-  Track_Playcount = numeric(0),
-  Track_Listeners = numeric(0),
-  stringsAsFactors = FALSE
-)
-
-get_top_tracks_fm &lt;- function(artist_name){
-  # Set parameters for the request
-  params &lt;- list(
-    method = &quot;artist.getTopTracks&quot;,
-    artist = artist_name,
-    api_key = lastfm_apikey,
-    format = &quot;json&quot;
-  )
-  
-  # Make the GET request
-  response &lt;- GET(lastfm_endpoint, query = params)
-  content &lt;- content(response, &quot;parsed&quot;) 
-  
-  return(content)
-}
-
-get_tracks_info_fm &lt;- function(artist_name) {
-  
-  # Get the playlist data given the playlist id
-  dt &lt;- get_top_tracks_fm(artist_name)
-  
-  # Append the values of interest
-  if (length(dt$toptracks$track) == 0) {
-    # If no data is available, create a data frame with NAs
-    top_tracks_fm_data &lt;- rbind(top_tracks_fm_data, data.frame(Artist_Name = artist_name,
-                                                               Track_Name = NA,
-                                                               Track_Playcount = NA,
-                                                               Track_Listeners = NA
-                                                               ))
-  } else {
-    # If data is available, append the values of interest
-    top_tracks_fm_data &lt;- rbind(top_tracks_fm_data, data.frame(Artist_Name = artist_name,
-                                                               Track_Name = dt$toptracks$track[[1]]$name,
-                                                               Track_Playcount = dt$toptracks$track[[1]]$playcount,
-                                                               Track_Listeners = dt$toptracks$track[[1]]$listeners
-                                                               ))
-  }
-  
-  # Return the resulting dataframe
-  return(top_tracks_fm_data)
-}
-
-result_list &lt;- lapply(top_hundred_artists$Artist_Name, get_tracks_info_fm)
-top_tracks_fm_data &lt;- do.call(rbind, result_list)
-
-# Format the data
-top_tracks_fm_data &lt;- top_tracks_fm_data %&gt;%
-  mutate(Spotify_Artist_ID = ifelse(Artist_Name %in% top_hundred_artists$Artist_Name,
-                                    top_hundred_artists$Spotify_Artist_ID[match(Artist_Name, top_hundred_artists$Artist_Name)], 
-                                    NA),
-         Track_Playcount = as.numeric(Track_Playcount),
-         Track_Listeners = as.numeric(Track_Listeners)
-  ) 
-
-# Write top_tracks_fm_data to the relational database
-dbWriteTable(db, &quot;top_tracks_fm_df&quot;, top_tracks_fm_data, overwrite = TRUE)
-
-# Call check_table on &quot;top_tracks_fm_df&quot;
-check_table(db, &quot;top_tracks_fm_df&quot;)
 
 endurance_score_query_rs100 &lt;-  &quot;
   SELECT Spotify_Artist_ID, Followers, Popularity, Listeners_LastFM, Playcount_LastFM, Latest_Album_Release, On_Tour
