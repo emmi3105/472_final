@@ -1,6 +1,6 @@
 ---
 title: "Final Assignment"
-author: "Student ID: 201903536"
+author: "Candidate Number: 35031"
 date: "10 January 2024"
 output: html_document
 ---
@@ -8,13 +8,8 @@ output: html_document
 ```{r setup, include=FALSE} 
 #####################################
 # SETUP
-#####################################
 
 knitr::opts_chunk$set(echo = FALSE) 
-
-#####################################
-# Install/load packages
-#####################################
 
 library(tidyverse)
 library(RSelenium)
@@ -31,55 +26,32 @@ library(VennDiagram)
 library(grid)
 library(png)
 library(cowplot)
+library(knitr)
 ```
 
 
 ## GitHub
 
-The GitHub repository for **this assignment** can be found [here](https://github.com/emmi3105/472_final).
+The GitHub repository for **this assignment** can be found [here](https://github.com/emmi3105/472_final).^[Note that, in our RMarkdown, we disabled the execution of the chunks containing code for automatic webscraping and sending requests to our APIs with eval=False as to prevent retrieving the data over and over again.]
 
-## Task
 
-### Research question:
+
+## Research question:
 
 "_Rolling Stone_ Magazine ranked their 100 greatest musical artists of all time. At the end of 2023, how has their music endured? Are there any features or characteristics that seem to explain enduring engagement? 
 
-### Required data sources:
-
-- [Rolling Stone's 100 Greatest Artists, 2010](https://www.rollingstone.com/music/music-lists/100-greatest-artists-147446/)
-
-- [Spotify Web API](https://developer.spotify.com/documentation/web-api)
-
-
-
-
-THESE: Die RS-T100 sind eher gefestigte Institutionen als artists, die gerade, im Jahr 2023, "viral" sind.
-
-
-+++ Parliament Funkadelic: andere Spotify ID: 6XswoC68grx55in1WQnJ7E"
-
 ## 1. Introduction 
 
-We calculate an endurance score.
-
-We scaled it so that the artist with the highest endurance will have an endurance score of 100% and an endurance of 0 is translated to a score of 0%.
-
-We will compare this score 
+We approached the question in two steps. Firstly, we measured the endurance of the Rolling Stone's Top 100 (RS-T100) by calculating `Endurance Scores`, which we compared to endurance of the most popular artists of 2023. Secondly, we analysed correlations between endurance, latest album release dates, being on tour, and album certifications.
 
 ## 2. Data
 
-Firstly, we created a relational database to which we later add the data. The primary key of the tables in the database is the variable `Spotify_Artist_ID`, which refers to the unique ID each artist is assigned in the Spotify API. Overall, we used four different data sources that we will briefly elaborate on in the following section.
-
 ```{r create a relational database}
 
-################################################################################
-# Step 1: Create a relational database
+#####################################
+# Create a relational database
 
-# Create database
 db <- dbConnect(RSQLite::SQLite(), "data/spotify.sqlite")
-
-# Check existence of the database
-#print(file.exists("data/spotify.sqlite"))
 ```
 
 ```{r check_table function}
@@ -113,38 +85,33 @@ check_table <- function(db, a_table){
 }
 ```
 
-### Rolling Stones Data
+### Rolling Stone Data
 
-From the [Rolling Stone's 100 Greatest Artists, 2010](https://www.rollingstone.com/music/music-lists/100-greatest-artists-147446/), we extracted the names of the 100 greatest artists [from now on referred to as RS-T100] ranked by the Rolling Stones Magazine in 2010.
+Firstly, we extracted the names of the [Rolling Stone's 100 Greatest Artists](https://www.rollingstone.com/music/music-lists/100-greatest-artists-147446/) (RS-T100).
 
 ### Spotify API
 
-We used the [Spotify Web API](https://developer.spotify.com/documentation/web-api) to get further information on the RS-T100, such as the Spotify artist ID, the Followers and Popularity on Spotify, and the date of the latest album release.
-
-Furthermore, we extracted the same variables for the artists that appeared in the playlist [Top Artists of 2023 USA](https://open.spotify.com/playlist/37i9dQZF1DX4dwwIoKH0j7) [from now on referred to as Spotify Top 50]. We chose the US playlist, as, firstly, the US is a major market on Spotify, secondly, the Rolling Stones is a US-American magazine, and thirdly, most artists that appeared in the RS-T100 are US-American. Thereby, focusing on the US market on Spotify might give the most realistic comparison to the RS-T100.
-
-Note that for all but one observations, the data was properly extracted. For "Parliament Funkadelic", the get request extracted an incorrect Spotify ID. Thereby, we manually changed this single ID to the correct one.
+Using the [Spotify Web API](https://developer.spotify.com/documentation/web-api), we retrieved additional data on the on the RS-T100, including the Spotify artist ID, Followers, Popularity, and the date of the latest album release. The same variables were extracted for the artists in the playlist [`Top Artists of 2023 USA`](https://open.spotify.com/playlist/37i9dQZF1DX4dwwIoKH0j7) (Spotify-T50). Focusing on the US market provides a relevant comparison to RS-T100, given the Rolling Stone's US origin and the prominence of the US on Spotify. Manual corrections were made for inaccuracies in the Spotify artist ID extraction for "Parliament Funkadelic".
 
 ### LastFM API
 
-The [LastFM API](https://www.last.fm/de/api) holds additional metrics on music artists, from which we created the variables Playcount, Listeners and a binary variable that indicates whether the artist is currently on tour, for both, the RS-T100 and the Spotify Top 50.
+Utilising the [LastFM API](https://www.last.fm/de/api), we additionally gathered the Playcount, Listeners, and on-tour status for RS-T100 and Spotify-T50. Furthermore, we extracted all of the previously mentioned variables for the top 50 artists as ranked on LastFM (LastFM-T50).
 
-Furthermore, we also extracted the top 50 artists as ranked by the charts on LastFM [from now on referred to as LastFM Top 50]. All of the previously mentioned variables were created for the LastFM Top 50 as well.
 
 ### RIAA Data (Wikipedia)
 
-Finally, we added another data source to our existing data. We wanted to not only compare the RS-T100 to the most streamed or listened to artists on platforms such as Spotify and LastFM, but we also wanted to know whether the endurance might be related to awards and certifications. Therefore, we used the Recording Industry Association of America (RIAA) award certification. We extracted information on the RIAA certification of music artists in the United States, which is based on the sales of albums through retail and other ancillary markets. As [RIAA does not allow webscraping](https://www.riaa.com/privacy-policy-and-terms-of-use/), we extracted the names of the hundred most certified music artists [from now on referred to as RIAA Top 100] from [Wikipedia](https://en.wikipedia.org/wiki/List_of_highest-certified_music_artists_in_the_United_States).
 
-In the end, we had created four tables that each held the same information on the artists, as shown below.
+To explore potential correlations between awards and artist popularity, we gathered details on Recording Industry Association of America (RIAA) certifications. These certifications are grounded in album sales across retail and ancillary markets, sourced from [Wikipedia](https://en.wikipedia.org/wiki/List_of_highest-certified_music_artists_in_the_United_States). The previously listed data were collected for the RIAA Top 100 artists (RIAA-T100).^[As [RIAA does not allow webscraping](https://www.riaa.com/privacy-policy-and-terms-of-use/), we extracted the information from Wikipedia.]
 
+
+### Data Storage 
+
+All data were organised into tables, which were stored in a relational database using `Spotify_Artist_ID` as the primary key.
 
 ```{r get rolling stones data, eval=FALSE}
 
-################################################################################
-# Step 2: Get the data
-
-################################################################################
-# Step 2A: Rolling Stones data
+#####################################
+# Extract Rolling Stones data
 
 # Launch the driver and browser
 invisible(capture.output({
@@ -184,7 +151,7 @@ load_more <- function(){
 
 # Click the load previous button
 load_previous <- function(){
-  # Load more button
+  # Load previous button
   load_previous_button <- driver$findElement(using = "xpath", 
                                          value = '/html/body/div[5]/main/div[2]/div[1]/div/article/div[3]/div[2]/div[1]')
   # Click on the button:
@@ -193,43 +160,37 @@ load_previous <- function(){
 
 # Extract the rankings
 extract_rank <- function(){
-  # Find all elements with the class name "c-gallery-vertical-album__number"
+  
   artist_rank_elements <- driver$findElements(using = "class name", value = "c-gallery-vertical-album__number")
   
-  # Extract text from each element
   artist_ranks <- sapply(artist_rank_elements, function(element) element$getElementText()[[1]])
   
-  # Print or use the extracted information
   return(artist_ranks)
 }
 
 # Extract the artist names
 extract_artist_names <- function(){
-  # Find all elements with the class name "c-gallery-vertical-album__title"
+  
   artist_name_elements <- driver$findElements(using = "class name", value = "c-gallery-vertical-album__title")
   
-  # Extract text from each element
   artist_names <- sapply(artist_name_elements, function(element) element$getElementText()[[1]])
   
-  # Print or use the extracted information
   return(artist_names)
 }
 
 # Extract the article text
 extract_article_text <- function(){
-  # Find all elements with the class name "c-gallery-vertical-album__title"
+  
   article_text_elements <- driver$findElements(using = "class name", value = "c-gallery-vertical-album__description")
   
-  # Extract text for the first 50 elements
   article_text <- sapply(article_text_elements, function(element) element$getElementText()[[1]])
   
-  # Print or use the extracted information
   return(article_text)
 }
 
 # Scrape the data
 scrape_artist_rankings <- function(){
-  # Assign values from the vector to the first 50 rows of the "Ranking" column in top_hundred_artists_df
+  # Get the first 50 artists
   top_hundred_artists_df$Ranking[1:50] <- extract_rank()
   top_hundred_artists_df$Artist_Name[1:50] <- extract_artist_names()
   top_hundred_artists_df$Article_Text[1:50] <- extract_article_text()
@@ -238,7 +199,7 @@ scrape_artist_rankings <- function(){
   load_more()
   Sys.sleep(2)
 
-  # Assign values from the vector to the last 50 rows of the "Ranking" column in top_hundred_artists_df
+  # Get the last 50 artists
   top_hundred_artists_df$Ranking[51:100] <- extract_rank()
   top_hundred_artists_df$Artist_Name[51:100] <- extract_artist_names()
   top_hundred_artists_df$Article_Text[51:100] <- extract_article_text()
@@ -277,8 +238,9 @@ system("taskkill /im java.exe /f", intern=FALSE, ignore.stdout=FALSE)
 
 
 ```{r get Spotify API data, eval=FALSE}
-################################################################################
-# Step 2B: Spotify API data
+
+#####################################
+# Extract Spotify Web API data
 
 readRenviron("../../Documents/R_Environs/spotify_api.env")
 client_id <- Sys.getenv("CLIENT_ID")
@@ -342,6 +304,7 @@ top_hundred_artists <- top_hundred_artists %>%
   mutate(Spotify_Artist_ID = ifelse(Artist_Name == "Parliament and Funkadelic", "6XswoC68grx55in1WQnJ7E", Spotify_Artist_ID))
 
 # 2) Get the artist info given the artist ID 
+
 get_artist_info <- function(artist_id){
   # Define the Spotify API endpoint for getting information about an artist
   artist_url <- paste0('https://api.spotify.com/v1/artists/', artist_id)
@@ -465,7 +428,7 @@ top_hundred_artists$Latest_Album_Release <- as.character(top_hundred_artists$Lat
 
 ```{r get the spotify top artists 2023 USA, eval=FALSE}
 
-# 3) Get the Spotify playlist "Top Artists of 2023, USA"
+# 4) Get the Spotify playlist "Top Artists of 2023, USA"
 
 # Get a playlist
 get_playlist <- function(playlist_id){
@@ -588,61 +551,10 @@ top_artists_2023$Latest_Album_Release <- as.character(top_artists_2023$Latest_Al
 ```
 
 
-```{r get the spotify top groups 2023 USA, eval=FALSE}
-
-# 7) Get the Spotify playlist "Top Groups of 2023, USA"
-
-top_groups_2023 <- data.frame(
-  Playlist_Name = character(0),
-  Playlist_ID = character(0),
-  Playlist_Description = character(0),
-  Track_Name = character(0),
-  Artist_Name = character(0),
-  Spotify_Track_ID = character(0),
-  Track_Duration = numeric(0),
-  Track_Popularity = numeric(0),
-  Album_Release_Date = character(0),
-  stringsAsFactors = FALSE
-)
-
-# Get the Playlist Info
-top_groups_2023_id <- "37i9dQZF1DX6Q49slBRXI2"
-top_groups_2023_dt <- get_playlist_info(top_groups_2023_id, top_groups_2023)
-
-# Create a dataframe for the artists on the Top Groups 2023 USA Playlist
-top_groups_2023 <- data.frame(
-  Artist_Name = top_groups_2023_dt$Artist_Name,
-  stringsAsFactors = FALSE
-)
-
-# Get the artist ID
-top_groups_2023$Spotify_Artist_ID <- lapply(top_groups_2023$Artist_Name, get_artist_id)
-
-# Get Artist Info
-result <- lapply(top_groups_2023$Spotify_Artist_ID, get_artist_info)
-
-# Extract individual elements: Popularity and Followers
-top_groups_2023$Followers <- sapply(result, function(x) x$followers)
-top_groups_2023$Popularity <- sapply(result, function(x) x$popularity)
-
-# Remove the row names
-top_groups_2023 <- data.frame(top_groups_2023, row.names = NULL)
-
-# Convert list columns to character
-top_groups_2023$Spotify_Artist_ID <- as.character(top_groups_2023$Spotify_Artist_ID)
-
-# Write top_groups_2023 to the relational database
-dbWriteTable(db, "top_groups_2023_df", top_groups_2023, overwrite = TRUE)
-```
-
-
-Potentially get rid of certified_singles_df?
-
-
 ```{r get RIAA Wikipedia data, eval=FALSE}
 
-################################################################################
-# Step 2C: RIAA Wikipedia Data
+#####################################
+# Extract RIAA data from Wikipedia
 
 get_wikipedia_tables <- function(url){
   # Storing the URL's HTML code
@@ -658,23 +570,18 @@ url <- "https://en.wikipedia.org/wiki/List_of_highest-certified_music_artists_in
 tab <- get_wikipedia_tables(url)
 
 certified_albums_data <- as_tibble(tab[[1]][, 1:5])
-certified_singles_data <- as_tibble(tab[[2]][, 1:5])
 
 # Save the tables as global variables
 assign("certified_albums_data", certified_albums_data, envir = .GlobalEnv)
-assign("certified_singles_data", certified_singles_data, envir = .GlobalEnv)
 
 # Save the global variables to an RData files
 save(certified_albums_data, file = "data/certified_albums_data.RData")
-save(certified_singles_data, file = "data/certified_singles_data.RData")
 
 # Load global variables
 load("data/certified_albums_data.RData")
-load("data/certified_singles_data.RData")
 
 # Copy the scraped table to avoid modifying the original data
 certified_albums <- certified_albums_data
-certified_singles <- certified_singles_data
 
 
 certified_albums <- certified_albums %>%
@@ -685,35 +592,21 @@ certified_albums <- certified_albums %>%
                             NA)) %>%
   mutate(Top_Hundred = ifelse(!is.na(Spotify_Artist_ID), 1, 0))
 
-certified_singles <- certified_singles %>%
-  rename(Artist_Name = Name,
-         Million_Units = `Units(millions)`) %>%
-  mutate(Spotify_Artist_ID = ifelse(Artist_Name %in% top_hundred_artists$Artist_Name, 
-                                    top_hundred_artists$Spotify_Artist_ID[match(Artist_Name, top_hundred_artists$Artist_Name)], 
-                                    NA)) %>%
-  mutate(Top_Hundred = ifelse(!is.na(Spotify_Artist_ID), 1, 0))
-
-
 # Get all artist IDs
 certified_albums$Spotify_Artist_ID <- sapply(certified_albums$Artist_Name, get_artist_id)
-certified_singles$Spotify_Artist_ID <- sapply(certified_singles$Artist_Name, get_artist_id)
 
 # Get Spotify Popularity and Followers
 result <- lapply(certified_albums$Spotify_Artist_ID, get_artist_info)
 certified_albums$Followers <- sapply(result, function(x) x$followers)
 certified_albums$Popularity <- sapply(result, function(x) x$popularity)
-
-result <- lapply(certified_singles$Spotify_Artist_ID, get_artist_info)
-certified_singles$Followers <- sapply(result, function(x) x$followers)
-certified_singles$Popularity <- sapply(result, function(x) x$popularity)
 ```
 
 
 
 ```{r get LastFM API Data, eval=FALSE}
 
-################################################################################
-# Step 2D: LastFM API Data
+#####################################
+# Extract LastFM API data
 
 # Set up the API Key and endpoint
 readRenviron("../../Documents/R_Environs/lastfm_api.env")
@@ -823,7 +716,8 @@ charts_artists_data$Latest_Album_Release <- as.character(charts_artists_data$Lat
 
 ```{r listeners and playcount for rs-t100, eval=FALSE}
 
-# Table 10: Listeners and Playcount for RS-T100
+#####################################
+# Extract listeners and playcount for RS-T100
 
 # Create an empty dataframe
 artists_fm_data <- data.frame(
@@ -915,7 +809,9 @@ dbWriteTable(db, "top_hundred_artists_df", top_hundred_artists, overwrite = TRUE
 
 
 ```{r get playcount and listeners for Spotify Top Artists, eval=FALSE}
-# Get the playcount and listeners for the Spotify Top Artists of 2023
+
+#####################################
+# Extract listeners and playcount for Spotify Top 50
 
 # Create an empty dataframe
 artists_fm_data <- data.frame(
@@ -959,7 +855,8 @@ dbWriteTable(db, "top_artists_2023_USA_df", top_artists_2023, overwrite = TRUE)
 
 ```{r retrieve On_Tour variable for the charts_artists_data, eval=FALSE}
 
-# Get the On_Tour variable for the charts_artists_data
+#####################################
+# Extract On_Tour variable for LastFM Top 50
 
 # Create an empty dataframe
 artists_fm_data <- data.frame(
@@ -986,9 +883,9 @@ dbWriteTable(db, "charts_artists_df", charts_artists_data, overwrite = TRUE)
 
 ```{r add fm variables to riaa album and single certification data, eval=FALSE}
 
-# Add variables to the RIAA album and single certification data
+#####################################
+# Extract listeners and playcount for RIAA Top 100
 
-# Certified Albums
 # Create an empty dataframe
 artists_fm_data <- data.frame(
   Artist_Name = character(0),
@@ -1019,49 +916,11 @@ certified_albums$Playcount_LastFM <- ifelse(certified_albums$Spotify_Artist_ID %
                                                artists_fm_data$Playcount[match(certified_albums$Spotify_Artist_ID, artists_fm_data$Spotify_Artist_ID)], 
                                                NA)
 
-# Certified Singles
-# Create an empty dataframe
-artists_fm_data <- data.frame(
-  Artist_Name = character(0),
-  Playcount = numeric(0),
-  Listeners = numeric(0),
-  On_Tour = numeric(0),
-  stringsAsFactors = FALSE
-)
-
-result_list <- lapply(certified_singles$Artist_Name, get_artist_info_fm)
-artists_fm_data <- do.call(rbind, result_list)
-
-# Format the data
-artists_fm_data <- artists_fm_data %>%
-  mutate(Spotify_Artist_ID = ifelse(Artist_Name %in% certified_singles$Artist_Name,
-                                    certified_singles$Spotify_Artist_ID[match(Artist_Name, certified_singles$Artist_Name)], 
-                                    NA),
-         Playcount = as.numeric(Playcount),
-         Listeners = as.numeric(Listeners)
-         ) 
-
-# Add the newly retrieved variables "Playcount", "Listeners" and "On_Tour" to certified_singles
-certified_singles$Listeners_LastFM <- ifelse(certified_singles$Spotify_Artist_ID %in%artists_fm_data$Spotify_Artist_ID, 
-                                               artists_fm_data$Listeners[match(certified_singles$Spotify_Artist_ID, artists_fm_data$Spotify_Artist_ID)], 
-                                               NA)
-
-certified_singles$Playcount_LastFM <- ifelse(certified_singles$Spotify_Artist_ID %in%artists_fm_data$Spotify_Artist_ID, 
-                                               artists_fm_data$Playcount[match(certified_singles$Spotify_Artist_ID, artists_fm_data$Spotify_Artist_ID)], 
-                                               NA)
-
-# Write certified_singles and certified_singles to the relational database
+# Write certified_albums to the relational database
 dbWriteTable(db, "certified_albums_df", certified_albums, overwrite = TRUE)
-dbWriteTable(db, "certified_singles_df", certified_singles, overwrite = TRUE)
 ```
 
-
-
-### Data Frames
-
-The following data frames were written to the relational database.
-
-1. RS Top 100 Artists
+1. Rolling Stone's: Top 100 Artists (2010)
 
 ```{r call check_table on "top_hundred_artists_df"}
 
@@ -1078,17 +937,7 @@ check_table(db, "top_hundred_artists_df")
 check_table(db, "top_artists_2023_USA_df")
 ```
 
-
-3. Spotify: Top 50 Groups of 2023 (potentially delete)
-
-```{r call check_table on "top_groups_2023_df"}
-
-# Call check_table on "top_groups_2023_df"
-check_table(db, "top_groups_2023_df")
-```
-
-
-4. LastFM: Top 50 Artists Charts
+3. LastFM: Top 50 Artists Charts
 
 ```{r call check_table on "charts_artists_df"}
 
@@ -1097,7 +946,7 @@ check_table(db, "charts_artists_df")
 ```
 
 
-5. RIAA: Highest-certified Music Artists in the US based on certifications of albums
+4. RIAA: Highest-certified Music Artists in the US based on Certifications of Albums
 
 ```{r call check_table on "certified_albums_df"}
 
@@ -1106,21 +955,17 @@ check_table(db, "certified_albums_df")
 ```
 
 
-6. RIAA: Highest-certified Music Artists in the US based on certifications of singles
+### Variables of Interest
 
-```{r call check_table on "certified_singles_df"}
-
-# Call check_table on "certified_singles_df"
-check_table(db, "certified_singles_df") 
-```
-
-
-#### Variables
+The table below summarises the variables relevant to our analysis.
 
 ```{r create variable table}
 
+#####################################
+# Create a variable table
+
 variable_table <- data.frame(
-  Variables = c("Artist_Name", 
+  Variable = c("Artist_Name", 
                 "Spotify_Artist_ID",
                 "Ranking",
                 "Followers", 
@@ -1140,11 +985,11 @@ variable_table <- data.frame(
                   "Listeners on LastFM",
                   "Number of times a song has been played on LastFM",
                   "Binary indicator: 1 if the artist is on tour, 0 otherwise",
-                  "RIAA album units: 1,500 streams = 1 album unit and 10 track sales = 1 album unit",
+                  "RIAA album units in millions: 1,500 streams = 1 album unit and 10 track sales = 1 album unit",
                   "Binary indicator: 1 if the artist appears in the RS-T100, 0 otherwise"),
-  Source = c("Rolling Stones/Spotify/Last_FM/RIAA",
+  Source = c("Rolling Stone/Spotify/Last FM/RIAA",
              "Spotify",
-             "Rolling Stones",
+             "Rolling Stone",
              "Spotify",
              "Spotify",
              "Spotify",
@@ -1160,7 +1005,6 @@ variable_table <- data.frame(
 
 
 ```{r show variable table, echo = FALSE, results='asis'}
-library(knitr)
 
 kable(variable_table)
 ```
@@ -1171,24 +1015,24 @@ kable(variable_table)
 ## 3. Analysis
 
 
-### A. Are the Rolling Stones Top 100 still relevant in 2023?
+### A. Are the Rolling Stone's Top 100 still relevant in 2023?
 
-We calculate two *Endurance Scores* for the RS-T100 as well as the Spotify Top 50, the LastFM Top 50 and the RIAA Top 100: 
+We calculate two *Endurance Scores* for the RS-T100, Spotify-T50, LastFM-T50, and RIAA-T100: 
 
-$Spotify\_Endurance = Spotify\_Popularity * Spotify\_Followers$
+$Spotify\_Endurance = Popularity * Followers$
 
-$LastFM\_Endurance = LastFM\_Playcount * LastFM\_Listeners$
+$LastFM\_Endurance = Playcount\_LastFM * Listeners\_LastFM$
 
-Then, we scale the endurance scores so that the artist with the highest endurance, which is Taylor Swift on Spotify and LastFM, is scaled to 100%. An endurance of 0 is scaled to 0%.^[As of 23. December 2023, Taylor Swift had 109'341'734 monthly listeners on Spotify.] 
+Next, we scale the endurance scores, setting the highest score, which is Taylor Swift on both, Spotify and LastFM, to 100% and a score of 0 to 0%.^[As of 23. December 2023, Taylor Swift had 109'341'734 monthly listeners on Spotify.] 
 
 #### On a scale of 1 to Taylor Swift ...?
 
-Using the endurance scores as calculated above, we plot the Spotify_Endurance against the LastFM_Endurance of the RS-T100, the LastFM Top 50, and the Spotify Top 50.
-
-Unsurprisingly, the two endurance scores seem to be positively correlated. Furthermore, Taylor Swift has the highest endurance scores by large, none of the RS-T100 can compete with her popularity.
-
+Firstly, we investigate how the `Spotify_Endurance` and the `LastFM_Endurance` are correlated for the RS-T100, LastFM-T50 and Spotify-T50.
 
 ```{r calculate endurance score, eval=FALSE}
+
+#####################################
+# Calculate endurance scores
 
 endurance_score_query_rs100 <-  "
   SELECT Spotify_Artist_ID, Followers, Popularity, Listeners_LastFM, Playcount_LastFM, Latest_Album_Release, On_Tour
@@ -1230,7 +1074,7 @@ endurance_score_result <- endurance_score_result %>%
          LastFM_Endurance = as.numeric(Listeners_LastFM) * as.numeric(Playcount_LastFM))
   
 
-# Taylor Swift Endurement Score
+# Taylor Swift Endurance Score
 ts_data <- get_artist_info("06HL4z0CvFAxyc27GXpf02")
 ts_followers <- as.numeric(ts_data$followers)
 ts_popularity <- as.numeric(ts_data$popularity)
@@ -1257,9 +1101,6 @@ save(endurance_score_result, file = "data/endurance_score_result.RData")
 ```
 
 
-In the violin plots below, the distributions of the endurance scores for the three groups are visualised. Clearly, the RS-T100 have, on average, a significanlty lower endurance on Spotify and LastFM compared to the most popular artists of 2023. However, the distribution is quite skewed toward larger values, showing outliers with values up to 75% (58%) on Spotify (LastFM). This raises two questions: 
-
-Which of the RS-T100 have a significantly higher endurance than the average, and what explains that?
 
 ```{r plot endurance score, fig.width=10, fig.height=4}
 
@@ -1303,11 +1144,19 @@ endurance_plot <- ggplot(endurance_score_data,
   # Manually set colors
   scale_color_manual(values = manual_colors)
 
-    
+# Display the plot    
 endurance_plot
 ```
 
+
+**Results**: The endurance scores exhibit a clear positive correlation. Taylor Swift stands out with significantly higher scores, surpassing the popularity of any RS-T100 artist. 
+
+Secondly, we examine potential differences in the distribution of endurance across the three groups of artists.
+
 ```{r plot the endurance distribution, fig.width=10, fig.height=4}
+
+#####################################
+# Plot the endurance score distribution
 
 endurance_distribution_fm <- ggplot(endurance_score_data, aes(x=Appearance, y=LastFM_Endurance, fill=Appearance)) +
   geom_violin() +
@@ -1358,11 +1207,18 @@ combined_endurance_distribution
 ```
 
 
+**Results**: On average, RS-T100 artists exhibit significantly lower endurance scores compared to the Spotify-T50 and LastFM-T50. However, outliers in the RS-T100 with a Spotify (LastFM) endurance of 75% (58%) raise the question, why some RS-T100 remain popular in 2023 when most RS-T100 show relatively low endurance.
+
+
 #### Intersections
 
-Potentially, some of the RS-T100 also appear in the Spotify or LastFM Top 50. The venn diagram below shows these intersections.
+The RS-T100, which exhibit outlier values for endurance scores, may not be confined solely to the Rolling Stones ranking, but could also be found in the Spotify-T50 and LastFM-T50. Therefore, we look at the intersections of the RS-T100, Spotify-T50 and LastFM-T50.
 
-```{r venn diagram spotify, fm, rs top 100}
+
+```{r venn diagram spotify, fm, rs top 100, eval=FALSE}
+
+#####################################
+# Plot the intersections between RS-T100, Spotify Top 50, LastFM Top 50
 
 set_rs <- endurance_score_data %>% filter(Appearance=="RS Top 100") %>% select(Spotify_Artist_ID) %>% unlist()
 set_spotify <- endurance_score_data %>% filter(Appearance=="Spotify Top 50") %>% select(Spotify_Artist_ID) %>% unlist()
@@ -1389,7 +1245,7 @@ venn <- venn.diagram(
   cat.cex = 1, 
   cat.col = c('#F8766D', '#00BFC4', '#EBAC23'),
   cat.fontface = "bold",
-  cat.fontfamily = "arial"
+  cat.fontfamily = "arial",
 )
 ```
 
@@ -1402,21 +1258,81 @@ img <- knitr::include_graphics("venn_spotify_fm_rs.png")
 knitr::include_graphics(img)
 ```
 
-Visibly, there are a few RS-T100 that also appear to be within the most popular artists of 2023. In the following section, we approach the question what could possibly give these artists stronger endurance.
+The diagram above shows that there indeed are artists that appear in the RS-T100 as well as the Spotify- or LastFM-T50. In the scatter plot below, we examine whether these artists exhibit higher endurance scores compared to artists that exclusively are RS-T100.
+
+```{r plot average endurance of RS-T100 depending on chart presence, fig.width=10, fig.height=4}
+
+#####################################
+# Plot the average endurance of RS-T100 depending on chart presence
+
+# Create a dataframe for RS T100
+endurance_score_rs <- endurance_score_data %>% filter(Appearance == "RS Top 100")
+
+# Create a dataframe for Spotify Top 50
+endurance_score_spotify <- endurance_score_data %>% filter(Appearance == "Spotify Top 50")
+
+# Create a dataframe for LastFM Top 50
+endurance_score_fm <- endurance_score_data %>% filter(Appearance == "LastFM Top 50")
+
+# Check presence in spotify_top50_data
+endurance_score_rs$Chart_Presence <- ifelse(endurance_score_rs$Spotify_Artist_ID %in% endurance_score_spotify$Spotify_Artist_ID, 2, 0)
+
+# Check presence in lastfm_top50_data
+endurance_score_rs$Chart_Presence <- endurance_score_rs$Chart_Presence +
+  ifelse(endurance_score_rs$Spotify_Artist_ID %in% endurance_score_fm$Spotify_Artist_ID, 3, 0)
+
+# Adjust values based on presence in both dataframes
+endurance_score_rs$Chart_Presence <- ifelse(endurance_score_rs$Chart_Presence == 5, 4, endurance_score_rs$Chart_Presence)
+
+
+manual_colors_rs_plot <- c("0" = "#F8766D",
+                           "2" = "#00BFC4",
+                           "3" = "#EBAC23",
+                           "4" = "#984EA3")
+manual_labels_rs_plot <- c("0" = "Only RS",
+                           "2" = "RS and Spotify",
+                           "3" = "RS and LastFM",
+                           "4" = "RS, Spotify and LastFM")
+
+# Plot the endurance scores (on a scale of 1 to Taylor Swift)
+endurance_plot_rs <- ggplot(endurance_score_rs,
+                          aes(x = Spotify_Endurance, y = LastFM_Endurance, color = factor(Chart_Presence))) +
+  geom_point(size = 2) +
+  geom_point(aes(x = 100, y = 100), color = "#00BA38", size = 3, fill = "#00BA38", shape = 23) +
+  # Add labels
+  geom_text(aes(x = 100, y = 100, label = "Taylor Swift"), vjust = 2, hjust = 1, size = 3, family = "Arial", color = "#00BA38") +
+  # Add titles
+  labs(title = "Spotify Endurance vs. Last FM Endurance",
+       x = "Spotify Endurance",
+       y = "LastFM Endurance",
+       color = "Chart Presence"
+       ) +
+  theme_minimal() +
+  # Adjust the font size for the title and the axes
+  theme(
+    axis.text = element_text(size = 8),     
+    axis.title = element_text(size = 8),    
+    plot.title = element_text(size = 12)
+    ) +
+  # Manually set colors
+  scale_color_manual(values = manual_colors_rs_plot, labels = manual_labels_rs_plot)
+
+    
+endurance_plot_rs
+```
+
+**Results**: As expected, the RS-T100 that display the highest values for endurance are also in the Spotify- and LastFM-T50. We can confirm that these artists still endure in 2023. Yet overall, endurance of the RS-T100 is relatively low.
 
 ### B. What explains endurance?
 
-Three potential reasons:
-
-1. Latest Album Release vs. endurance (only spotify, only rs t100, both)
-2. RIAA Certifications vs. endurance (only spotify, only rs t100, both)
-3. On Tour vs. endurance (only spotify, only rs t100, both)
-
 #### i. Latest Album Release vs. Endurance
+
+**Results**: As visualised below, we find that recent album releases positively correlate with higher endurance scores for all artists.
 
 ```{r latest album release vs. endurance, fig.width=10, fig.height=4, message=FALSE}
 
-# Plot: Latest album release dates vs. endurance
+#####################################
+# Plot the latest album release dates against endurance
 
 # Manual Labels
 manual_labels <- c("0" = "Only Rolling Stones Top 100", "1" = "Also Spotify Top Artist/Group 2023")
@@ -1468,7 +1384,7 @@ latest_album_release_plot_means <- ggplot(endurance_score_data,
     geom_vline(xintercept = mean_album_release_fm, linetype = "dotted", color = "#EBAC23") +
   geom_hline(yintercept = mean_endurance_fm, linetype = "dotted", color = "#EBAC23") +
   # Add titles
-  labs(title = "Latest Album Release Date vs. Spotify Endurance, by Appearance",
+  labs(title = "Latest Album Release Date vs. Spotify Endurance, by Appearance with means",
        x = "Latest Album Release Date",
        y = "Spotify Endurance",
        color = "Ranking Appearance") +
@@ -1484,11 +1400,11 @@ latest_album_release_plot_means <- ggplot(endurance_score_data,
 
 latest_album_release_plot_reg <- ggplot(endurance_score_data, 
                                         aes(x = Latest_Album_Release, y = Spotify_Endurance)) +
-  geom_point(aes(color = "Actual Data"), size = 1) +
+  geom_point(aes(color = "RS-T100, LastFM- and Spotify-T50"), size = 1) +
   # Add a regression line
   stat_smooth(method = "lm", se = TRUE, aes(color = "Regression Line"), show.legend = TRUE, alpha = 0.3) +
   # Add titles and legend
-  labs(title = "Latest Album Release Date vs. Spotify Endurance, with Regression",
+  labs(title = "Latest Album Release Date vs. Spotify Endurance",
        x = "Latest Album Release Date",
        y = "Spotify Endurance") +
   theme_minimal() +
@@ -1498,22 +1414,81 @@ latest_album_release_plot_reg <- ggplot(endurance_score_data,
     axis.title = element_text(size = 8),    
     plot.title = element_text(size = 12)
   ) +
-  scale_color_manual(values = c("Actual Data" = "black", "Regression Line" = "#00BF7D"), name="Colour")
+  scale_color_manual(values = c("RS-T100, LastFM- and Spotify-T50" = "black", "Regression Line" = "#00BF7D"), name="Colour")
 
 # Arrange the two plots next to each other
-latest_album_release_plot <- plot_grid(latest_album_release_plot_means, latest_album_release_plot_reg, ncol = 1, nrow=2)
+latest_album_release_plot <- plot_grid(latest_album_release_plot_reg, latest_album_release_plot_means, ncol = 1, nrow=2)
 
 # Display the plot
 latest_album_release_plot
 ```
 
-#### ii. RIAA Certifications vs. Endurance
 
-Riaa Ranked, RS T100, Both
+#### ii. On Tour
+
+**Results**: We find that artists that are currently on tour have higher average endurance scores, which especially holds for the Spotify- and LastFM-T50. Further research could investigate the causality of being on tour and endurance using statistical tests.
+
+```{r plot On_Tour vs. Endurance, fig.width=10, fig.height=4}
+
+#####################################
+# Plot the On_Tour variable against endurance
+
+manual_colors <- c("RS Top 100" = "#F8766D", 
+                   "Spotify Top 50" = "#00BFC4",
+                   "LastFM Top 50" = "#EBAC23")
+
+tour_plot_fm_endurance <- ggplot(endurance_score_data, aes(fill=Appearance, y=LastFM_Endurance, x=On_Tour)) + 
+  geom_bar(position="dodge", stat = "summary", fun = "mean") +
+  # Add titles
+  labs(title = "Latest Album Release Date vs. LastFM Endurance",
+       x = "On Tour",
+       y = "Average LastFM Endurance",
+       color = "Ranking Appearance",
+       shape = "On Tour") +
+  theme_minimal() +
+  # Adjust the font size for the title and the axes
+  theme(
+    axis.text = element_text(size = 8),     
+    axis.title = element_text(size = 8),    
+    plot.title = element_text(size = 12)
+  ) + 
+  scale_fill_manual(values = manual_colors) +
+  scale_x_discrete(labels = c("No", "Yes"))
+
+tour_plot_spotify_endurance <- ggplot(endurance_score_data, aes(fill=Appearance, y=Spotify_Endurance, x=On_Tour)) + 
+  geom_bar(position="dodge", stat = "summary", fun = "mean") +
+  # Add titles
+  labs(title = "Latest Album Release Date vs. Spotify Endurance",
+       x = "On Tour",
+       y = "Average Spotify Endurance",
+       color = "Ranking Appearance",
+       shape = "On Tour") +
+  theme_minimal() +
+  # Adjust the font size for the title and the axes
+  theme(
+    axis.text = element_text(size = 8),     
+    axis.title = element_text(size = 8),    
+    plot.title = element_text(size = 12)
+  ) + 
+  scale_fill_manual(values = manual_colors) +
+  scale_x_discrete(labels = c("No", "Yes"))
+
+# Arrange the two plots next to each other
+tour_plot <- plot_grid(tour_plot_spotify_endurance, tour_plot_fm_endurance, ncol = 2, nrow=1)
+
+# Display the plot
+tour_plot
+```
+
+#### iii. RIAA Certifications vs. Endurance
+
+**Result**: We do not find a strong correlation between endurance and RIAA certification units, as plotted below.
 
 ```{r data for riaa certifications vs endurance plot, eval=FALSE}
 
-# Plot B: RIAA Certifications
+#####################################
+# Plot RIAA units against endurance
+
 certifications_query_riaa <-  "
   SELECT Spotify_Artist_ID, Million_Units, Top_Hundred, Followers, Popularity, Listeners_LastFM, Playcount_LastFM
   FROM certified_albums_df 
@@ -1609,8 +1584,8 @@ riaa_albums_plot <- plot_grid(riaa_albums_plot_spotify, riaa_albums_plot_fm, nco
 riaa_albums_plot
 ```
 
-It seems to not be correlated. But: is the rs t100 rank related to that?
-Or at least can we say that there is a large intersection?
+
+However, as seen in the diagram below, we noticed that a quarter of the RS-T100 are also within the RIAA-T100. Potentially, the selection of the RS-T100 artists was inspired by historical certifications rather than endurance in 2023.
 
 
 ```{r display the venn diagram for riaa and RS, echo=FALSE,out.width="45%", out.height="45%",fig.cap="Intersection of Rolling Stones Top 100, Spotify Top 50, LastFM Top 50",fig.show='hold',fig.align='center'}
@@ -1621,96 +1596,28 @@ img2 <- knitr::include_graphics("venn_diagramm_riaa_albums.png")
 knitr::include_graphics(img2)
 ```
 
-#### iii. On Tour
-
-```{r plot On_Tour vs. Endurance, fig.width=10, fig.height=4}
-
-# Plot C: On Tour vs. Endurance
-
-manual_colors <- c("RS Top 100" = "#F8766D", 
-                   "Spotify Top 50" = "#00BFC4",
-                   "LastFM Top 50" = "#EBAC23")
-
-# Plot C: On Tour vs. Endurance
-
-tour_plot_fm_endurance <- ggplot(endurance_score_data, aes(fill=Appearance, y=LastFM_Endurance, x=On_Tour)) + 
-  geom_bar(position="dodge", stat = "summary", fun = "mean") +
-  # Add titles
-  labs(title = "Latest Album Release Date vs. LastFM Endurance",
-       x = "On Tour",
-       y = "Average LastFM Endurance",
-       color = "Ranking Appearance",
-       shape = "On Tour") +
-  theme_minimal() +
-  # Adjust the font size for the title and the axes
-  theme(
-    axis.text = element_text(size = 8),     
-    axis.title = element_text(size = 8),    
-    plot.title = element_text(size = 12)
-  ) + 
-  scale_fill_manual(values = manual_colors) +
-  scale_x_discrete(labels = c("No", "Yes"))
-
-tour_plot_spotify_endurance <- ggplot(endurance_score_data, aes(fill=Appearance, y=Spotify_Endurance, x=On_Tour)) + 
-  geom_bar(position="dodge", stat = "summary", fun = "mean") +
-  # Add titles
-  labs(title = "Latest Album Release Date vs. Spotify Endurance",
-       x = "On Tour",
-       y = "Average Spotify Endurance",
-       color = "Ranking Appearance",
-       shape = "On Tour") +
-  theme_minimal() +
-  # Adjust the font size for the title and the axes
-  theme(
-    axis.text = element_text(size = 8),     
-    axis.title = element_text(size = 8),    
-    plot.title = element_text(size = 12)
-  ) + 
-  scale_fill_manual(values = manual_colors) +
-  scale_x_discrete(labels = c("No", "Yes"))
-
-# Arrange the two plots next to each other
-tour_plot <- plot_grid(tour_plot_spotify_endurance, tour_plot_fm_endurance, ncol = 2, nrow=1)
-
-# Display the plot
-tour_plot
-```
 
 
-
-### C. Critique
-
-- Most of the artists are men (percentage)
-- Most of the artists are from the US
-- Most of the artists are (relatively) old
+### C. Discussion
 
 
+In summary, our analysis reveals that most RS-T100 artists trail behind the popularity of the Spotify- and LastFM-T50. Yet, some RS-T100 still reach high popularity scores today. These artists also tend to appear in the Spotify- and LastFM-T50. Investigating factors influencing endurance, we found that recent album releases and being on tour positively correlate with endurance, while receiving numerous RIAA certifications has little association with endurance. Further research could explore the causality of the relationships we found, for instance, using an instrumental variable regression. Last but not least, we can confirm that the craze around Taylor Swift is unparalleled.^[737 words, excluding titles, graphs, tables, code, sources and appendix.]
 
-
-
-
-
-#### Critique
-
--> Potentially, the Rolling Stones Top 100 artists of all times is also due to personal preference: 
-
-"The essays on these top 100 artists are by their peers: singers, producers and musicians. In these fan testimonials, indie rockers pay tribute to world-beating rappers (Vampire Weekend’s Ezra Koenig on Jay-Z), young pop stars honor stylistic godmothers (Britney Spears on Madonna) and Billy Joel admits that Elton John “kicks my ass on piano." (https://www.rollingstone.com/music/music-lists/100-greatest-artists-147446/)
-
--> The articles were mostly written by men (percentage) from the US (percentage). It is not surprising, therefore, that the lineup shows a large neglection of female and/or non-American artists.
-
--> Potentially, these factors also explain why the endurement for the Rolling Stones Top 100 is not as big. Nowadays, the listeners simply demand more diversity and inclusion from musicians
-
-The greatest artists of all time? Well, more like "A list of 100 mostly male, mostly American, probably quite famous artists that were a thing in the past".
-
-
-#### Limitations
-
-- no access to social media data -> especially TikTok is a driving force nowadays, when it comes to what songs go "viral" and what artists are en vogue
-- webscraping is not allowed for many websites (e.g., it would have been interesting to get the monthly listeners value for the rolling stones top 100, or whether they are ranked and if so how, but spotify does not allow webscraping)
 
 ## Data
 
-## Code Sources
+### Required Data
+
+[1] [Rolling Stone's 100 Greatest Artists, 2010](https://www.rollingstone.com/music/music-lists/100-greatest-artists-147446/)
+
+[2] [Spotify Web API](https://developer.spotify.com/documentation/web-api)
+
+### Additional Data
+
+[3] [LastFM API](https://www.last.fm/de/api) 
+
+[4] [RIAA Album Certifications (from Wikipedia)](https://en.wikipedia.org/wiki/List_of_highest-certified_music_artists_in_the_United_States).
+
 
 ## Appendix: All code in this assignment
 
